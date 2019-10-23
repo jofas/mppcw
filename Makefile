@@ -1,4 +1,5 @@
-FC=           gfortran
+#FC=           gfortran
+FC=           mpifort
 FFLAGS=       -O3
 EXE=          percolate
 INSTALL_PATH= /usr/bin/
