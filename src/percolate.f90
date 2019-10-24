@@ -39,14 +39,18 @@ program percolate
 
   integer :: rank, w_size
 
-  integer :: i
+  integer :: i, j
   integer :: m_dim, splitted_m_dim, inner_smap_size
   integer :: changes, changes_sum, max_iter
 
   integer, dimension(:, :), allocatable :: map_
   integer, dimension(:, :), allocatable :: smap, osmap
 
-  type(MPI_Comm), save :: comm
+  integer :: n_upper, n_lower, source
+  integer, dimension(1) :: coords
+
+  type(MPI_Status) :: stat
+  type(MPI_Comm), save :: comm, comm_cart
   comm = mpi_comm_world
 
   cli = read_from_cli()
@@ -68,11 +72,19 @@ program percolate
     m = Map(cli%matrix_dimension, cli%density_of_filled_cells)
     map_ = m%map(1:cli%matrix_dimension, 1:cli%matrix_dimension)
 
-    do i = 1, cli%matrix_dimension
-      print *, map_(i, :)
-    end do
-    print *, ""
+    !do i = 1, cli%matrix_dimension
+    !  print *, map_(i, :)
+    !end do
+    !print *, ""
   end if
+
+  call mpi_cart_create(comm, 1, [w_size], [.false.], &
+    .false., comm_cart)
+
+  call mpi_cart_shift(comm_cart, 0,  1, source, n_upper)
+  call mpi_cart_shift(comm_cart, 0, -1, source, n_lower)
+
+  !print *, rank, n_lower, n_upper
 
   m_dim = cli%matrix_dimension
   splitted_m_dim = m_dim / w_size
@@ -87,27 +99,38 @@ program percolate
 
   !print *, rank, smap
 
-  max_iter = inner_smap_size * 2 - 1
+  max_iter = cli%matrix_dimension * 2 - 1
   changes_sum = 0
 
   do i = 1, max_iter
+    call mpi_sendrecv(smap(1:m_dim, splitted_m_dim), &
+      m_dim, mpi_integer, n_upper, 0, &
+      smap(1:m_dim, splitted_m_dim + 1), m_dim, &
+      mpi_integer, n_upper, 0, comm_cart, stat)
+
+    call mpi_sendrecv(smap(1:m_dim, 1), m_dim, &
+      mpi_integer, n_lower, 0, smap(1:m_dim, 0), m_dim, &
+      mpi_integer, n_lower, 0, comm_cart, stat)
+
+    !print *, rank, smap
+
     osmap = smap
 
-    where (smap /= 0)
-      smap = max( cshift(smap, shift=-1, dim=1) &
-                , cshift(smap, shift= 1, dim=1) &
-                , cshift(smap, shift=-1, dim=2) &
-                , cshift(smap, shift= 1, dim=2) &
-                , smap )
-    end where
+    forall (i=1:m_dim, j=1:splitted_m_dim, smap(i, j) /= 0)
+      smap(i, j) = max( smap(i - 1, j), smap(i + 1, j) &
+                      , smap(i, j - 1), smap(i, j + 1) &
+                      , smap(i, j) )
+    end forall
 
     changes = sum(smap - osmap)
 
-    if (changes == 0) exit
+    ! TODO: gather changes in root process -> sum them and
+    !       broadcast the data back
+    !if (changes == 0) exit
 
     changes_sum = changes_sum + changes
 
-    if (mod(i, 100) == 0) print *, i, changes_sum
+    if (mod(i, 100) == 0) print *, rank, i, changes_sum
   end do
 
   !changes_per_iteration = m%build_clusters()
@@ -117,10 +140,11 @@ program percolate
     mpi_integer, 0, comm)
 
   if (rank == 0) then
-    do i = 1, m_dim
-      print *, map_(i, :)
-    end do
+    !do i = 1, m_dim
+    !  print *, map_(i, :)
+    !end do
 
+    !m%map(1:cli%matrix_dimension, 1:cli%matrix_dimension) = map_
     call pgm_write( &
       cli%pgm_file_path, map_, cli%print_n_clusters &
     )
