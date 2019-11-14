@@ -80,11 +80,6 @@ program percolate
         end if
       end do
     end do
-
-    !do i=1,L
-    !  print *, map_(i, :)
-    !end do
-    !print *
   end if
 
   call mpi_cart_create(comm, 1, [w_size], [.false.], &
@@ -104,10 +99,8 @@ program percolate
     mpi_integer, smap(:m_dim, 1:splitted_m_dim), &
     inner_smap_size, mpi_integer, 0, comm)
 
-  ! TODO !!!
-  max_iter = 999 !cli%matrix_dimension * 2 - 1
-
-  do i = 1, max_iter
+  i = 1
+  do
     ! send upwards, receive downward
     call mpi_sendrecv(smap(:, splitted_m_dim), &
       m_dim, mpi_integer, n_upper, 0, &
@@ -149,20 +142,19 @@ program percolate
 
     changes = count(smap(:, :) - osmap(:, :) /= 0)
 
-    ! TODO: gather changes in root process -> sum them and
-    !       broadcast the data back
-    !if (changes == 0) exit
     if (mod(i, 100) == 0) then
-      call mpi_reduce(changes, changes_sum, 1, mpi_integer, &
-        mpi_sum, 0, comm)
+
+      call mpi_allreduce(changes, changes_sum, 1, &
+        mpi_integer, mpi_sum, comm)
+
+      if (changes_sum == 0) exit
 
       if (rank == 0) print *, rank, i, changes_sum
     end if
+    i = i + 1
   end do
 
-  !print *, "rank ", rank, "map", smap
-
-  call mpi_gather(smap(:m_dim, 1:splitted_m_dim), &
+  call mpi_gather(smap(:, 1:splitted_m_dim), &
     inner_smap_size, mpi_integer, map_, inner_smap_size, &
     mpi_integer, 0, comm)
 
