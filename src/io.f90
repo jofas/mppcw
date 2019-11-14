@@ -25,8 +25,6 @@ module io
     integer :: seed
     integer :: print_n_clusters
     real    :: density_of_filled_cells
-    logical :: verbose
-    character(len = STR_LEN) :: data_file_path
     character(len = STR_LEN) :: pgm_file_path
   contains
     procedure, private :: parse_argument
@@ -34,13 +32,7 @@ module io
   end type
 
   public read_from_cli
-  public write_data_file
-  public write_pgm_file
-  public print_params_and_actual_density
-  public print_iterations
-  public print_percolation_status
-  public print_amount_of_clusters_and_size_of_biggest
-  public print_amount_of_displayed_clusters
+  public pgm_write
 
 contains
 
@@ -119,13 +111,6 @@ contains
 
         print_n_clusters_set = .true.
 
-      case("--verbose", "-v")
-        self%verbose = .true.
-
-      case("--data_file_path")
-        call read_command_value(i)
-        self%data_file_path = trim(cli_in)
-
       case("--pgm_file_path")
         call read_command_value(i)
         self%pgm_file_path = trim(cli_in)
@@ -156,8 +141,6 @@ contains
     self%seed                    = 1564
     self%print_n_clusters        = 20 ** 2
     self%density_of_filled_cells = .4
-    self%verbose                 = .false.
-    self%data_file_path          = "map.dat"
     self%pgm_file_path           = "map.pgm"
   end
 
@@ -210,150 +193,166 @@ contains
   end
 
 
-  subroutine write_data_file(path, inner_map)
+  subroutine pgm_write(percfile, map, ncluster)
     !
-    ! Subroutine writing the inner_map to file (path).
-    !
-    ! It writes the matrix column wise, beginning with the
-    ! last column.
-    !
-
-    character(len = STR_LEN), intent(in) :: path
-    integer, dimension(:, :), intent(in) :: inner_map
-
-    integer :: inner_map_size, j
-
-    inner_map_size = size(inner_map, dim=1)
-
-    write (*, *) 'Opening file ', path
-    open (unit=IOUNIT, file=path)
-    write (*, *) 'Writing data ...'
-
-    write (FMT_STRING, fmt='(''('', i3, ''(1x, I4))'')') &
-      inner_map_size
-
-    do j = inner_map_size, 1, -1
-      write (IOUNIT, fmt=FMT_STRING) inner_map(:, j)
-    end do
-
-    write (*, *) '...done'
-    close (IOUNIT)
-    write (*, *) 'File closed'
-  end
-
-
-  subroutine write_pgm_file(path, colors, amount_of_clusters)
-    !
-    ! Subroutine writing the colors matrix to a .pgm file
-    ! (path).
-    !
-    ! Like write_data_file, the colors matrix is written
-    ! column wise, beginning with the last column.
+    ! Function to write a percolation map in greyscale Portable Grey
+    ! Map (PGM) format. The largest "ncluster" clusters are identified
+    ! and shown as shades of grey against a black background, with the
+    ! largest cluster shown in white.
     !
 
-    character(len = STR_LEN), intent(in) :: path
-    integer, dimension(:, :), intent(in) :: colors
-    integer, intent(in) :: amount_of_clusters
+    character (len = *), intent(in)     :: percfile
+    integer, dimension(:,:), intent(in) :: map
+    integer, intent(in)                 :: ncluster
 
-    integer :: color_size, j
+    integer, parameter :: maxncluster = 9  ! Must be a single digit
+    integer, parameter :: pixperline = 32  ! PGM limit 70 chars per line
 
-    color_size = size(colors, dim=1)
+    integer, dimension(pixperline)     :: pgmline
+    integer, dimension(maxncluster)    :: foundcluster
+    integer, allocatable, dimension(:) :: clustersize
 
-    write (*, *) 'Opening file ', path
-    open (unit=IOUNIT, file=path)
-    write (*, *) 'Writing data ...'
+    integer, parameter :: fmtlen = 64
+    character (len = fmtlen)  :: fmtstring
+    integer, parameter :: iounit = 12
 
-    call write_pgm_header(amount_of_clusters, color_size)
+    integer :: m, n
 
-    do j = color_size, 1, -1
-      write (IOUNIT, fmt=FMT_STRING) colors(:, j)
-    end do
+    integer :: i, j, npix, colour
+    integer :: clusterid, icluster, lncluster, prevcluster, maxcluster
 
-    write (*, *) '...done'
-    close (IOUNIT)
-    write (*, *) 'File closed'
-  end
+    m = size(map, 1)
+    n = size(map, 2)
 
+    allocate(clustersize(m*n))
 
-  subroutine write_pgm_header(amount_of_clusters, color_size)
-    !
-    ! Subroutine writing some header information to the
-    ! .pgm file (handled by IOUNIT).
-    !
+    lncluster = ncluster
 
-    integer, intent(in) :: amount_of_clusters, color_size
+    if (lncluster > maxncluster) then
 
-    write (FMT_STRING, fmt='(''('', i3, ''(1x, I4))'')') &
-      color_size
+      write(*,*) "percwrite: WARNING ncluster too large, resetting to ", &
+           maxncluster
 
-    write (IOUNIT, fmt='(''P2'')')
+      lncluster = maxncluster
 
-    write (IOUNIT, *) color_size, color_size
+   end if
 
-    if (amount_of_clusters > 0) then
-      write (IOUNIT, *) amount_of_clusters
-    else
-      write (IOUNIT, *) 1
-    end if
-  end
+   if (lncluster > 1) then
 
+      write(*,*) "percwrite: visualising the largest ", lncluster, "clusters"
 
-  subroutine print_params_and_actual_density( &
-    rho, L, seed, true_density &
-  )
-    real, intent(in)    :: rho, true_density
-    integer, intent(in) :: L, seed
+   else
 
-    write (*, *) 'Parameters are rho=', rho, ', L=', L, &
-                 ', seed=', seed
-    write (*, *) 'rho = ', rho, ', actual density = ', true_density
-  end
+      write(*,*) "percwrite: only visualising the largest cluster"
 
+   end if
 
-  subroutine print_iterations(changes_per_iteration)
-    integer, dimension(:), intent(in) :: changes_per_iteration
+   ! Count up the size of each cluster
 
-    integer :: i
+   clustersize(:) = 0
 
-    do i = 1, size(changes_per_iteration)
-      write (*, *) 'Number of changes on loop ', i, ' is ', &
-                   changes_per_iteration(i)
-    end do
-  end
+   do i = 1, m
+      do j = 1, n
 
+         clusterid = map(i,j)
 
-  subroutine print_percolation_status(does_percolate, cluster_num)
-    logical, intent(in) :: does_percolate
-    integer, intent(in) :: cluster_num
+         if (clusterid > 0) then
 
-    if (does_percolate) then
-      write (*, *) 'Cluster DOES percolate. Cluster number: ', &
-                   cluster_num
-    else
-      write (*, *) 'Cluster DOES NOT percolate'
-    end if
-  end
+            clustersize(clusterid) = clustersize(clusterid) + 1
 
+         end if
 
-  subroutine print_amount_of_clusters_and_size_of_biggest( &
-    amount, biggest_size &
-  )
-    integer, intent(in) :: amount, biggest_size
+      end do
+   end do
 
-    write (*, *) 'Map has ', amount, &
-      ' clusters, maximum cluster size is ', biggest_size
-  end
+   !  Find the size of the "lncluster" largest clusters (by brute force!)
 
+   prevcluster = m*n+1  ! Larger than the largest possible cluster
 
-  subroutine print_amount_of_displayed_clusters(print_n, actual_n)
-    integer, intent(in) :: print_n, actual_n
+   do icluster = 1, lncluster
 
-    if (print_n == 1) then
-      write (*, *) 'Displaying the largest cluster'
-    else if (print_n == actual_n) then
-      write (*, *) 'Displaying all clusters'
-    else
-      write (*, *) 'Displaying largest ', print_n, ' clusters'
-    end if
-  end
+      maxcluster = 0
+
+      do i = 1, m*n
+
+         if (clustersize(i) > maxcluster .and. &
+             clustersize(i) < prevcluster        ) then
+
+            maxcluster = clustersize(i)
+
+         end if
+
+      end do
+
+      foundcluster(icluster) = maxcluster
+      prevcluster = maxcluster
+
+   end do
+
+   if (lncluster > 1) then
+      write(*,*) "percwrite: cluster sizes are ", foundcluster(1:lncluster)
+   else
+      write(*,*) "percwrite: maximum cluster size is ", foundcluster(1)
+   end if
+
+   write(*,*) 'percwrite: opening file ', percfile
+
+   open(unit=iounit, file=percfile)
+
+   write(*,*) 'percwrite: writing data ...'
+
+   write(fmtstring, fmt='(''('', ''i1,'',i5,''(1x, i1))'')') pixperline-1
+   write(iounit,fmt='(''P2'')')
+   write(iounit,*) m,  n
+
+   write(iounit,*) lncluster
+
+   npix = 0
+
+   do j = n, 1, -1
+      do i = 1, m
+
+         clusterid = map(i,j)
+
+         !  Write out the largest cluster(s), shading appropriately
+
+         colour = 0
+
+         if (clusterid > 0) then
+
+            do icluster = 1, lncluster
+
+               if (clustersize(clusterid) == foundcluster(icluster)) then
+
+                  !  Largest (first) cluster is white
+
+                  colour = lncluster - icluster + 1
+
+               end if
+
+            end do
+
+         end if
+
+         npix = npix + 1
+
+         pgmline(npix) = colour
+
+         if (npix == pixperline) then
+            write(iounit,fmt=fmtstring) pgmline(1:npix)
+            npix = 0
+         end if
+
+      end do
+   end do
+
+   if (npix /= 0) then
+      write(iounit,fmt=fmtstring) pgmline(1:npix)
+   end if
+
+   write(*,*) 'percwrite: ... done'
+
+   close(iounit)
+   write(*,*) 'percwrite: file closed'
+ end
 end

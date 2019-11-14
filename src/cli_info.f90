@@ -8,7 +8,7 @@ module cli_info
 
   character(len=6), parameter :: VERSION = "v0.1.0"
 
-  character(len=53), dimension(46) :: HELP_MSG = (/ &
+  character(len=53), dimension(38) :: HELP_MSG = (/ &
   "percolate " // VERSION // &
   "                                    ", &
   "                                                    ", &
@@ -25,10 +25,6 @@ module cli_info
   "                                                    ", &
   "        --version              Prints the version of", &
   "                               this program.        ", &
-  "                                                    ", &
-  "    -v, --verbose              If flag is provided, ", &
-  "                               more information is  ", &
-  "                               printed to stdout.   ", &
   "                                                    ", &
   "    -l, --length INT           Sets the dimension of", &
   "                               the matrix.          ", &
@@ -47,10 +43,6 @@ module cli_info
   "                               clusters displayed in", &
   "                               the .pgm file.       ", &
   "                               DEFAULT: all.        ", &
-  "                                                    ", &
-  "        --data_file_path PATH  Set the path for the ", &
-  "                               data file.           ", &
-  "                               DEFAULT: map.dat     ", &
   "                                                    ", &
   "        --pgm_file_path PATH   Set the path for the ", &
   "                               .pgm file.           ", &

@@ -17,21 +17,14 @@ program percolate
   ! last column is displayed as the first row.
   !
 
-  use map_class
-  use sorted_clusters_class
-  use color_map_class
   use io
   use uni
-  use pgm_out
 
   use mpi_f08
 
   implicit none
 
   type(CLIResults) :: cli
-  type(Map) :: m
-  type(ColorMap) :: colors
-  type(SortedClusters) :: sorted_clusters
 
   integer, dimension(:), allocatable :: changes_per_iteration
   integer :: cluster_num
@@ -39,7 +32,7 @@ program percolate
 
   integer :: rank, w_size
 
-  integer :: i, j
+  integer :: i, j, free_cell_count
   integer :: m_dim, splitted_m_dim, inner_smap_size
   integer :: changes, changes_sum, max_iter
 
@@ -69,13 +62,18 @@ program percolate
       stop
     end if
 
-    m = Map(cli%matrix_dimension, cli%density_of_filled_cells)
-    map_ = m%map(1:cli%matrix_dimension, 1:cli%matrix_dimension)
+    allocate(map_(cli%matrix_dimension, cli%matrix_dimension))
+    map_(:, :) = 0
 
-    !do i = 1, cli%matrix_dimension
-    !  print *, map_(i, :)
-    !end do
-    !print *, ""
+    free_cell_count = 0
+    do i = 1, cli%matrix_dimension
+      do j = 1, cli%matrix_dimension
+        if (random_uniform() > cli%density_of_filled_cells) then
+          free_cell_count = free_cell_count + 1
+          map_(i, j) = free_cell_count
+        end if
+      end do
+    end do
   end if
 
   call mpi_cart_create(comm, 1, [w_size], [.false.], &
@@ -83,8 +81,6 @@ program percolate
 
   call mpi_cart_shift(comm_cart, 0,  1, source, n_upper)
   call mpi_cart_shift(comm_cart, 0, -1, source, n_lower)
-
-  !print *, rank, n_lower, n_upper
 
   m_dim = cli%matrix_dimension
   splitted_m_dim = m_dim / w_size
@@ -96,8 +92,6 @@ program percolate
   call mpi_scatter(map_, inner_smap_size, &
     mpi_integer, smap(1:m_dim, 1:splitted_m_dim), &
     inner_smap_size, mpi_integer, 0, comm)
-
-  !print *, rank, smap
 
   max_iter = cli%matrix_dimension * 2 - 1
   changes_sum = 0
@@ -111,8 +105,6 @@ program percolate
     call mpi_sendrecv(smap(1:m_dim, 1), m_dim, &
       mpi_integer, n_lower, 0, smap(1:m_dim, 0), m_dim, &
       mpi_integer, n_lower, 0, comm_cart, stat)
-
-    !print *, rank, smap
 
     osmap = smap
 
@@ -133,78 +125,14 @@ program percolate
     if (mod(i, 100) == 0) print *, rank, i, changes_sum
   end do
 
-  !changes_per_iteration = m%build_clusters()
-
   call mpi_gather(smap(1:m_dim, 1:splitted_m_dim), &
     inner_smap_size, mpi_integer, map_, inner_smap_size, &
     mpi_integer, 0, comm)
 
   if (rank == 0) then
-    !do i = 1, m_dim
-    !  print *, map_(i, :)
-    !end do
-
-    !m%map(1:cli%matrix_dimension, 1:cli%matrix_dimension) = map_
     call pgm_write( &
       cli%pgm_file_path, map_, cli%print_n_clusters &
     )
   end if
   call mpi_finalize()
-
-  !does_percolate = m%does_percolate_horizontically(cluster_num)
-
-  !sorted_clusters = SortedClusters(m)
-
-  !call reset_print_n_clusters_if_not_enough_clusters()
-
-  !colors = ColorMap( &
-  !  m, sorted_clusters%cluster_ids, cli%print_n_clusters &
-  !)
-
-  !call do_output()
-
-contains
-
-  subroutine reset_print_n_clusters_if_not_enough_clusters()
-    if (cli%print_n_clusters > sorted_clusters%amount_of_clusters) then
-      cli%print_n_clusters = sorted_clusters%amount_of_clusters
-    end if
-  end
-
-
-  subroutine do_output()
-    if (cli%verbose) call print_infos1()
-
-    call write_data_file(cli%data_file_path, m%inner())
-
-    if (cli%verbose) call print_infos2()
-
-    call write_pgm_file( &
-      cli%pgm_file_path, colors%color_map, cli%print_n_clusters &
-    )
-  end
-
-
-  subroutine print_infos1()
-    call print_params_and_actual_density( &
-      cli%density_of_filled_cells, cli%matrix_dimension, &
-      cli%seed, m%true_density &
-    )
-
-    call print_iterations(changes_per_iteration)
-
-    call print_percolation_status(does_percolate, cluster_num)
-  end
-
-
-  subroutine print_infos2()
-    call print_amount_of_clusters_and_size_of_biggest( &
-      sorted_clusters%amount_of_clusters, &
-      sorted_clusters%cluster_sizes(1)    &
-    )
-
-    call print_amount_of_displayed_clusters( &
-      cli%print_n_clusters, sorted_clusters%amount_of_clusters &
-    )
-  end
 end
