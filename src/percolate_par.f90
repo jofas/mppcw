@@ -32,7 +32,11 @@ program percolate
 
   integer :: rank, w_size
 
-  integer :: i, j, free_cell_count
+  integer :: L
+
+  integer :: i_upper, i_lower
+
+  integer :: i, j, k, free_cell_count
   integer :: m_dim, splitted_m_dim, inner_smap_size
   integer :: changes, changes_sum, max_iter
 
@@ -47,6 +51,8 @@ program percolate
   comm = mpi_comm_world
 
   cli = read_from_cli()
+
+  L = cli%matrix_dimension
 
   call rinit(cli%seed)
 
@@ -74,6 +80,11 @@ program percolate
         end if
       end do
     end do
+
+    !do i=1,L
+    !  print *, map_(i, :)
+    !end do
+    !print *
   end if
 
   call mpi_cart_create(comm, 1, [w_size], [.false.], &
@@ -86,46 +97,72 @@ program percolate
   splitted_m_dim = m_dim / w_size
   inner_smap_size = m_dim * splitted_m_dim
 
-  allocate(smap(0:m_dim + 1, 0:splitted_m_dim + 1))
+  allocate(smap(m_dim, 0:splitted_m_dim + 1))
   smap(:, :) = 0
 
   call mpi_scatter(map_, inner_smap_size, &
-    mpi_integer, smap(1:m_dim, 1:splitted_m_dim), &
+    mpi_integer, smap(:m_dim, 1:splitted_m_dim), &
     inner_smap_size, mpi_integer, 0, comm)
 
-  max_iter = cli%matrix_dimension * 2 - 1
-  changes_sum = 0
+  ! TODO !!!
+  max_iter = 999 !cli%matrix_dimension * 2 - 1
 
   do i = 1, max_iter
-    call mpi_sendrecv(smap(1:m_dim, splitted_m_dim), &
+    ! send upwards, receive downward
+    call mpi_sendrecv(smap(:, splitted_m_dim), &
       m_dim, mpi_integer, n_upper, 0, &
-      smap(1:m_dim, splitted_m_dim + 1), m_dim, &
-      mpi_integer, n_upper, 0, comm_cart, stat)
+      smap(:, 0), m_dim, mpi_integer, n_lower, 0, &
+      comm_cart, stat)
 
-    call mpi_sendrecv(smap(1:m_dim, 1), m_dim, &
-      mpi_integer, n_lower, 0, smap(1:m_dim, 0), m_dim, &
-      mpi_integer, n_lower, 0, comm_cart, stat)
+    ! send downwards, receive upward
+    call mpi_sendrecv(smap(:, 1), m_dim, &
+      mpi_integer, n_lower, 0, &
+      smap(:, splitted_m_dim + 1), m_dim, &
+      mpi_integer, n_upper, 0, comm_cart, stat)
 
     osmap = smap
 
-    forall (i=1:m_dim, j=1:splitted_m_dim, smap(i, j) /= 0)
-      smap(i, j) = max( smap(i - 1, j), smap(i + 1, j) &
-                      , smap(i, j - 1), smap(i, j + 1) &
-                      , smap(i, j) )
-    end forall
+    do j = 1, splitted_m_dim
+      do k = 1, m_dim
+      if(smap(k, j) /= 0) then
+        if (k == m_dim) then
+          i_upper = 1
+        else
+          i_upper = k + 1
+        end if
 
-    changes = sum(smap - osmap)
+        if (k == 1) then
+          i_lower = m_dim
+        else
+          i_lower = k - 1
+        end if
+
+        ! columns with halo
+        smap(k, j) = max( smap(k, j + 1) &
+                        , smap(k, j - 1) &
+                        , smap(i_upper, j) &
+                        , smap(i_lower, j) &
+                        , smap(k, j) )
+      end if
+      end do
+    end do
+
+    changes = count(smap(:, :) - osmap(:, :) /= 0)
 
     ! TODO: gather changes in root process -> sum them and
     !       broadcast the data back
     !if (changes == 0) exit
+    if (mod(i, 100) == 0) then
+      call mpi_reduce(changes, changes_sum, 1, mpi_integer, &
+        mpi_sum, 0, comm)
 
-    changes_sum = changes_sum + changes
-
-    if (mod(i, 100) == 0) print *, rank, i, changes_sum
+      if (rank == 0) print *, rank, i, changes_sum
+    end if
   end do
 
-  call mpi_gather(smap(1:m_dim, 1:splitted_m_dim), &
+  !print *, "rank ", rank, "map", smap
+
+  call mpi_gather(smap(:m_dim, 1:splitted_m_dim), &
     inner_smap_size, mpi_integer, map_, inner_smap_size, &
     mpi_integer, 0, comm)
 

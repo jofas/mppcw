@@ -1,3 +1,5 @@
+rm out/map.pgm
+
 make
 
 mpirun --hostfile hostfile --quiet -n $2 \
@@ -11,7 +13,6 @@ if [ -f out/map.pgm ]; then
   else
     echo FAILURE
   fi
-  rm out/map.pgm
 else
   echo NO FILE GENERATED
 fi
