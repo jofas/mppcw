@@ -2,7 +2,7 @@
 
 # PBS job options (name, compute nodes, job time)
 #PBS -N mpp_out
-#PBS -l select=1
+#PBS -l select=2
 #PBS -l walltime=03:00:00
 #PBS -A d171-s2000901
 #PBS -l place=excl
@@ -12,4 +12,4 @@
 # (remember this should be on the /work filesystem)
 cd $PBS_O_WORKDIR
 
-mpiexec -n 2 percolate_par
+mpiexec_mpt -n 2 ./percolate_par
