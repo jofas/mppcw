@@ -26,28 +26,33 @@ program percolate
 
   type(CLIResults) :: cli
 
-  integer, dimension(:), allocatable :: changes_per_iteration
-  integer :: cluster_num
-  logical :: does_percolate
+  !logical :: does_percolate
+
+  integer(kind=mpi_address_kind) :: lb, extent
 
   integer :: rank, w_size
+
+  integer :: ierr
 
   integer :: L
 
   integer :: i_upper, i_lower
 
   integer :: i, j, k, free_cell_count
-  integer :: m_dim, splitted_m_dim, inner_smap_size
+  integer :: N
   integer :: changes, changes_sum, max_iter
 
-  integer, dimension(:, :), allocatable :: map_
-  integer, dimension(:, :), allocatable :: smap, osmap
+  integer, dimension(:, :), allocatable :: big_map
+  integer, dimension(:, :), allocatable :: map_chunk, old_map_chunk
 
   integer :: n_upper, n_lower, source
   integer, dimension(1) :: coords
 
   type(MPI_Status) :: stat
   type(MPI_Comm), save :: comm, comm_cart
+
+  type(MPI_Datatype) :: column
+
   comm = mpi_comm_world
 
   cli = read_from_cli()
@@ -62,85 +67,85 @@ program percolate
   call mpi_comm_size(comm, w_size)
 
   if (rank == 0) then
-    if (mod(cli%matrix_dimension, w_size) /= 0) then
+    if (mod(L, w_size) /= 0) then
       print *, "Change either mpi world size or matrix dimension"
       call mpi_abort(comm, 0)
       stop
     end if
 
-    allocate(map_(cli%matrix_dimension, cli%matrix_dimension))
-    map_(:, :) = 0
-
-    free_cell_count = 0
-    do i = 1, cli%matrix_dimension
-      do j = 1, cli%matrix_dimension
-        if (random_uniform() > cli%density_of_filled_cells) then
-          free_cell_count = free_cell_count + 1
-          map_(i, j) = free_cell_count
-        end if
-      end do
-    end do
+    call init_big_map(big_map, L, cli%density_of_filled_cells)
   end if
 
+  ! TODO: 2d
   call mpi_cart_create(comm, 1, [w_size], [.false.], &
     .false., comm_cart)
 
   call mpi_cart_shift(comm_cart, 0,  1, source, n_upper)
   call mpi_cart_shift(comm_cart, 0, -1, source, n_lower)
 
-  m_dim = cli%matrix_dimension
-  splitted_m_dim = m_dim / w_size
-  inner_smap_size = m_dim * splitted_m_dim
+  N = L / w_size
 
-  allocate(smap(m_dim, 0:splitted_m_dim + 1))
-  smap(:, :) = 0
+  allocate(map_chunk(L, 0:N + 1))
+  allocate(old_map_chunk(L, 0:N + 1))
 
-  call mpi_scatter(map_, inner_smap_size, &
-    mpi_integer, smap(:m_dim, 1:splitted_m_dim), &
-    inner_smap_size, mpi_integer, 0, comm)
+  map_chunk(:, :) = 0
+
+  call mpi_scatter(big_map, L * N, mpi_integer, &
+    map_chunk(1, 1), L * N, mpi_integer, 0, comm)
+
+  call mpi_type_contiguous(L, mpi_integer, column, ierr)
+
+  print *, ierr
+
+  call mpi_type_get_extent(column, lb, extent)
+
+  print *, lb, extent, L * sizeof(1), sizeof(map_chunk(:, N))
+
+  if (rank == 0) then
+    call mpi_ssend(map_chunk(1, N), L, mpi_integer, 1, 0, comm)
+    print *, "successfully send"
+  elseif (rank == 1) then
+    call mpi_recv(map_chunk(1, 0), 1, column, 0, 0, comm, mpi_status_ignore)
+    print *, "successfully received"
+  end if
+
+  call mpi_finalize()
+  stop
 
   i = 1
   do
     ! send upwards, receive downward
-    call mpi_sendrecv(smap(:, splitted_m_dim), &
-      m_dim, mpi_integer, n_upper, 0, &
-      smap(:, 0), m_dim, mpi_integer, n_lower, 0, &
-      comm_cart, stat)
+
+    !call mpi_sendrecv(map_chunk(1, N), 1, column, & !L, mpi_integer, & ! column, &!L, mpi_integer, &
+    !  n_upper, 0, &
+    !  map_chunk(1, 0), 1, column, & !L, mpi_integer, &!1, column, & !L, mpi_integer,
+    !  n_lower, 0, comm_cart, mpi_status_ignore)
 
     ! send downwards, receive upward
-    call mpi_sendrecv(smap(:, 1), m_dim, &
-      mpi_integer, n_lower, 0, &
-      smap(:, splitted_m_dim + 1), m_dim, &
-      mpi_integer, n_upper, 0, comm_cart, stat)
+    call mpi_sendrecv(map_chunk(1, 1), L, mpi_integer, &
+      n_lower, 0, &
+      map_chunk(1, N + 1), L, mpi_integer, &
+      n_upper, 0, comm_cart, mpi_status_ignore)
 
-    osmap = smap
+    old_map_chunk(:, :) = map_chunk(:, :)
 
-    do j = 1, splitted_m_dim
-      do k = 1, m_dim
-      if(smap(k, j) /= 0) then
-        if (k == m_dim) then
-          i_upper = 1
-        else
-          i_upper = k + 1
+    do j = 1, N
+      do k = 1, L
+        if(map_chunk(k, j) /= 0) then
+          i_upper = modulo(k, L) + 1
+          i_lower = modulo(k - 2, L) + 1
+
+          ! columns with halo
+          map_chunk(k, j) = max( map_chunk(k, j + 1) &
+                          , map_chunk(k, j - 1) &
+                          , map_chunk(i_upper, j) &
+                          , map_chunk(i_lower, j) &
+                          , map_chunk(k, j) )
         end if
-
-        if (k == 1) then
-          i_lower = m_dim
-        else
-          i_lower = k - 1
-        end if
-
-        ! columns with halo
-        smap(k, j) = max( smap(k, j + 1) &
-                        , smap(k, j - 1) &
-                        , smap(i_upper, j) &
-                        , smap(i_lower, j) &
-                        , smap(k, j) )
-      end if
       end do
     end do
 
-    changes = count(smap(:, :) - osmap(:, :) /= 0)
+    changes = count(map_chunk(:, :) - old_map_chunk(:, :) /= 0)
 
     if (mod(i, 100) == 0) then
 
@@ -154,14 +159,36 @@ program percolate
     i = i + 1
   end do
 
-  call mpi_gather(smap(:, 1:splitted_m_dim), &
-    inner_smap_size, mpi_integer, map_, inner_smap_size, &
-    mpi_integer, 0, comm)
+  call mpi_gather(map_chunk(1, 1), L * N, mpi_integer, &
+    big_map, L * N, mpi_integer, 0, comm)
 
   if (rank == 0) then
     call pgm_write( &
-      cli%pgm_file_path, map_, cli%print_n_clusters &
+      cli%pgm_file_path, big_map, cli%print_n_clusters &
     )
   end if
   call mpi_finalize()
+
+contains
+
+  subroutine init_big_map(big_map, L, d)
+    integer, dimension(:, :), allocatable, intent(out) :: big_map
+    integer, intent(in) :: L
+    real, intent(in) :: d
+
+    integer :: i, j, free_cell_count
+
+    allocate(big_map(L, L))
+    big_map(:, :) = 0
+
+    free_cell_count = 0
+    do i = 1, L
+      do j = 1, L
+        if (random_uniform() > d) then
+          free_cell_count = free_cell_count + 1
+          big_map(i, j) = free_cell_count
+        end if
+      end do
+    end do
+  end
 end
