@@ -26,32 +26,29 @@ program percolate
 
   type(CLIResults) :: cli
 
-  !logical :: does_percolate
-
   integer(kind=mpi_address_kind) :: lb, extent
 
-  integer :: rank, w_size
+  integer :: rank, cart_rank, w_size
 
-  integer :: ierr
+  integer, dimension(2) :: coords
 
-  integer :: L
+  integer :: L, N
 
-  integer :: i_upper, i_lower
+  integer :: clustering_iter
 
-  integer :: i, j, k, free_cell_count
-  integer :: N
+  integer :: i, j
   integer :: changes, changes_sum, max_iter
 
   integer, dimension(:, :), allocatable :: big_map
-  integer, dimension(:, :), allocatable :: map_chunk, old_map_chunk
+  integer, dimension(:, :), allocatable :: map_chunk
+  integer, dimension(:, :), allocatable :: old_map_chunk
 
-  integer :: n_upper, n_lower, source
-  integer, dimension(1) :: coords
+  integer :: n_left, n_right, n_upper, n_lower, source
 
   type(MPI_Status) :: stat
   type(MPI_Comm), save :: comm, comm_cart
 
-  type(MPI_Datatype) :: column, row, inner
+  type(MPI_Datatype) :: column, row, inner_big, inner_chunk
 
   comm = mpi_comm_world
 
@@ -66,94 +63,142 @@ program percolate
   call mpi_comm_rank(comm, rank)
   call mpi_comm_size(comm, w_size)
 
+  N = 2 * float(L) / float(w_size)
+
+  call mpi_type_contiguous(N, mpi_integer, column)
+  call mpi_type_vector(N, 1, N+2, mpi_integer, row)
+
+  call mpi_type_vector(N, N, L, mpi_integer, inner_big)
+  call mpi_type_vector(N, N, N+2, mpi_integer, inner_chunk)
+
+  call mpi_type_commit(column)
+  call mpi_type_commit(row)
+  call mpi_type_commit(inner_big)
+  call mpi_type_commit(inner_chunk)
+
   if (rank == 0) then
-    if (mod(L, w_size) /= 0) then
-      print *, "Change either mpi world size or matrix dimension"
-      call mpi_abort(comm, 0)
-      stop
-    end if
+
+    ! TODO:
+    !if (mod(L, w_size) /= 0) then
+    !  print *, "Change either mpi world size or matrix dimension"
+    !  call mpi_abort(comm, 0)
+    !  stop
+    !end if
 
     call init_big_map(big_map, L, cli%density_of_filled_cells)
   end if
 
-  ! TODO: 2d
-  call mpi_cart_create(comm, 1, [w_size], [.false.], &
-    .false., comm_cart)
+  ! this thing thinks like david that a matrix can be
+  ! thought of as a euclidean coordinate system. This is
+  ! just rediculous and confusing.
+  call mpi_cart_create(comm, 2, [w_size/2, w_size/2], &
+    [.true., .false.], .false., comm_cart)
 
-  call mpi_cart_shift(comm_cart, 0,  1, source, n_upper)
-  call mpi_cart_shift(comm_cart, 0, -1, source, n_lower)
+  ! TODO: if w_size and L asymmetric, does the comm_rank
+  !       matter ???
 
-  N = L / w_size
+  !call mpi_cart_coords(comm_cart, rank, 2, coords)
+  !call mpi_cart_rank(comm_cart, coords, cart_rank)
 
-  allocate(map_chunk(L, 0:N + 1))
-  allocate(old_map_chunk(L, 0:N + 1))
+  call mpi_cart_shift(comm_cart, 1, 1, n_left, n_right)
+  call mpi_cart_shift(comm_cart, 0, 1, n_lower, n_upper)
 
+  allocate(map_chunk(0:N + 1, 0:N + 1))
+  allocate(old_map_chunk(0:N + 1, 0:N + 1))
+
+  !print *, "neighbors", rank, "upper", n_upper, "left", n_left, "lower", n_lower, "right", n_right
   map_chunk(:, :) = 0
 
-  call mpi_type_contiguous(L, mpi_integer, column)
-  call mpi_type_contiguous(L * N, mpi_integer, inner)
-  call mpi_type_commit(column)
-  call mpi_type_commit(inner)
+  if (rank == 0) then
+    do i = 1, w_size - 1
+      call mpi_cart_coords(comm_cart, i, 2, coords)
+      coords(:) = coords(:) * N + 1
 
-  call mpi_scatter( &
-    big_map, 1, inner, &
-    map_chunk(1, 1), 1, inner, &
-    0, comm &
-  )
+      call mpi_ssend( &
+        big_map(coords(1), coords(2)), 1, inner_big, &
+        i, 0, comm_cart &
+      )
+    end do
 
-  i = 1
+    map_chunk(1:N, 1:N) = big_map(:N, :N)
+  else
+    call mpi_recv(map_chunk(1, 1), 1, inner_chunk, &
+      0, 0, comm_cart, mpi_status_ignore)
+  end if
+
+  clustering_iter = 1
   do
-    ! send upwards, receive downward
+    ! send right, receive left
     call mpi_sendrecv( &
-      map_chunk(1, N), 1, column, n_upper, 0, &
-      map_chunk(1, 0), 1, column, n_lower, 0, &
+      map_chunk(1, N), 1, column, n_right, 0, &
+      map_chunk(1, 0), 1, column, n_left, 0, &
       comm_cart, mpi_status_ignore &
     )
 
-    ! send downwards, receive upward
+    ! send left, receive right
     call mpi_sendrecv( &
-      map_chunk(1, 1), 1, column, n_lower, 0, &
-      map_chunk(1, N + 1), 1, column, n_upper, 0, &
+      map_chunk(1, 1),     1, column, n_left, 0, &
+      map_chunk(1, N + 1), 1, column, n_right, 0, &
+      comm_cart, mpi_status_ignore &
+    )
+
+    ! send upper, receive lower
+    call mpi_sendrecv( &
+      map_chunk(N, 1), 1, row, n_upper, 0, &
+      map_chunk(0, 1), 1, row, n_lower, 0, &
+      comm_cart, mpi_status_ignore &
+    )
+
+    ! send lower, receive upper
+    call mpi_sendrecv( &
+      map_chunk(1, 1),     1, row, n_lower, 0, &
+      map_chunk(N + 1, 1), 1, row, n_upper, 0, &
       comm_cart, mpi_status_ignore &
     )
 
     old_map_chunk(:, :) = map_chunk(:, :)
 
-    do j = 1, N
-      do k = 1, L
-        if(map_chunk(k, j) /= 0) then
-          i_upper = modulo(k, L) + 1
-          i_lower = modulo(k - 2, L) + 1
-
-          ! columns with halo
-          map_chunk(k, j) = max( map_chunk(k, j + 1) &
-                          , map_chunk(k, j - 1) &
-                          , map_chunk(i_upper, j) &
-                          , map_chunk(i_lower, j) &
-                          , map_chunk(k, j) )
-        end if
-      end do
-    end do
+    forall(j=1:N, i=1:N, map_chunk(i, j) /= 0)
+      map_chunk(i, j) = max( map_chunk(i, j + 1) &
+                           , map_chunk(i, j - 1) &
+                           , map_chunk(i + 1, j) &
+                           , map_chunk(i - 1, j) &
+                           , map_chunk(i, j) )
+    end forall
 
     changes = count(map_chunk(:, :) - old_map_chunk(:, :) /= 0)
 
-    if (mod(i, 100) == 0) then
+    if (mod(clustering_iter, int(L * 0.5)) == 0) then
 
       call mpi_allreduce(changes, changes_sum, 1, &
         mpi_integer, mpi_sum, comm)
 
       if (changes_sum == 0) exit
 
-      if (rank == 0) print *, rank, i, changes_sum
+      if (rank == 0) print *, rank, clustering_iter, changes_sum
     end if
-    i = i + 1
+    clustering_iter = clustering_iter + 1
   end do
 
-  call mpi_gather( &
-    map_chunk(1, 1), 1, inner, &
-    big_map, 1, inner, &
-    0, comm &
-  )
+  if (rank == 0) then
+    do i = 1, w_size - 1
+      call mpi_cart_coords(comm_cart, i, 2, coords)
+      coords(:) = coords(:) * N + 1
+
+      call mpi_recv( &
+        big_map(coords(1), coords(2)), 1, inner_big, &
+        i, 0, comm_cart, mpi_status_ignore &
+      )
+
+    end do
+
+    big_map(:N, :N) = map_chunk(1:N, 1:N)
+  else
+    call mpi_ssend( &
+      map_chunk(1, 1), 1, inner_chunk, &
+      0, 0, comm_cart &
+    )
+  end if
 
   if (rank == 0) then
     call pgm_write( &
