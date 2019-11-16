@@ -35,11 +35,10 @@ program percolate
   integer :: clustering_iter
 
   integer :: i, j
-  integer :: changes, changes_sum, max_iter
+  integer :: chunk_elem_sum, big_elem_sum, big_elem_sum_old
 
   integer, dimension(:, :), allocatable :: big_map
   integer, dimension(:, :), allocatable :: map_chunk
-  integer, dimension(:, :), allocatable :: old_map_chunk
 
   integer, dimension(4) :: pointer_to_chunk_in_big_map
 
@@ -129,7 +128,6 @@ program percolate
   end if
 
   allocate(map_chunk(0:M + 1, 0:N + 1))
-  allocate(old_map_chunk(0:M + 1, 0:N + 1))
 
   map_chunk(:, :) = 0
 
@@ -148,6 +146,7 @@ program percolate
   end if
 
   clustering_iter = 1
+  big_elem_sum_old = 0
   do
     ! send right, receive left
     call mpi_sendrecv( &
@@ -177,8 +176,6 @@ program percolate
       comm_cart, mpi_status_ignore &
     )
 
-    old_map_chunk(:, :) = map_chunk(:, :)
-
     forall(j=1:N, i=1:M, map_chunk(i, j) /= 0)
       map_chunk(i, j) = max( map_chunk(i, j + 1) &
                            , map_chunk(i, j - 1) &
@@ -187,17 +184,20 @@ program percolate
                            , map_chunk(i, j) )
     end forall
 
-    changes = count(map_chunk(:, :) - old_map_chunk(:, :) /= 0)
+    chunk_elem_sum = sum(map_chunk(1:M, 1:N))
 
-    call mpi_allreduce(changes, changes_sum, 1, &
+    call mpi_allreduce(chunk_elem_sum, big_elem_sum, 1, &
       mpi_integer, mpi_sum, comm)
 
-    if (changes_sum == 0) exit
+    if (big_elem_sum == big_elem_sum_old) exit
+
+    big_elem_sum_old = big_elem_sum
 
     if (mod(clustering_iter, int(L * 0.5)) == 0 &
       .and. rank == 0) &
     then
-      print *, "changes", clustering_iter, changes_sum
+      print *, "percolate: average cell value of map on step ", &
+        clustering_iter, " is ", float(big_elem_sum) / float(L ** 2)
     end if
     clustering_iter = clustering_iter + 1
   end do
