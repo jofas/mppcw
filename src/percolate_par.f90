@@ -51,7 +51,7 @@ program percolate
   type(MPI_Status) :: stat
   type(MPI_Comm), save :: comm, comm_cart
 
-  type(MPI_Datatype) :: column
+  type(MPI_Datatype) :: column, row, inner
 
   comm = mpi_comm_world
 
@@ -90,42 +90,32 @@ program percolate
 
   map_chunk(:, :) = 0
 
-  call mpi_scatter(big_map, L * N, mpi_integer, &
-    map_chunk(1, 1), L * N, mpi_integer, 0, comm)
+  call mpi_type_contiguous(L, mpi_integer, column)
+  call mpi_type_contiguous(L * N, mpi_integer, inner)
+  call mpi_type_commit(column)
+  call mpi_type_commit(inner)
 
-  call mpi_type_contiguous(L, mpi_integer, column, ierr)
-
-  print *, ierr
-
-  call mpi_type_get_extent(column, lb, extent)
-
-  print *, lb, extent, L * sizeof(1), sizeof(map_chunk(:, N))
-
-  if (rank == 0) then
-    call mpi_ssend(map_chunk(1, N), L, mpi_integer, 1, 0, comm)
-    print *, "successfully send"
-  elseif (rank == 1) then
-    call mpi_recv(map_chunk(1, 0), 1, column, 0, 0, comm, mpi_status_ignore)
-    print *, "successfully received"
-  end if
-
-  call mpi_finalize()
-  stop
+  call mpi_scatter( &
+    big_map, 1, inner, &
+    map_chunk(1, 1), 1, inner, &
+    0, comm &
+  )
 
   i = 1
   do
     ! send upwards, receive downward
-
-    !call mpi_sendrecv(map_chunk(1, N), 1, column, & !L, mpi_integer, & ! column, &!L, mpi_integer, &
-    !  n_upper, 0, &
-    !  map_chunk(1, 0), 1, column, & !L, mpi_integer, &!1, column, & !L, mpi_integer,
-    !  n_lower, 0, comm_cart, mpi_status_ignore)
+    call mpi_sendrecv( &
+      map_chunk(1, N), 1, column, n_upper, 0, &
+      map_chunk(1, 0), 1, column, n_lower, 0, &
+      comm_cart, mpi_status_ignore &
+    )
 
     ! send downwards, receive upward
-    call mpi_sendrecv(map_chunk(1, 1), L, mpi_integer, &
-      n_lower, 0, &
-      map_chunk(1, N + 1), L, mpi_integer, &
-      n_upper, 0, comm_cart, mpi_status_ignore)
+    call mpi_sendrecv( &
+      map_chunk(1, 1), 1, column, n_lower, 0, &
+      map_chunk(1, N + 1), 1, column, n_upper, 0, &
+      comm_cart, mpi_status_ignore &
+    )
 
     old_map_chunk(:, :) = map_chunk(:, :)
 
@@ -159,8 +149,11 @@ program percolate
     i = i + 1
   end do
 
-  call mpi_gather(map_chunk(1, 1), L * N, mpi_integer, &
-    big_map, L * N, mpi_integer, 0, comm)
+  call mpi_gather( &
+    map_chunk(1, 1), 1, inner, &
+    big_map, 1, inner, &
+    0, comm &
+  )
 
   if (rank == 0) then
     call pgm_write( &
