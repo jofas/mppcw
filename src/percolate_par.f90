@@ -43,6 +43,12 @@ program percolate
   integer, dimension(:, :), allocatable :: map_chunk
   integer, dimension(:, :), allocatable :: old_map_chunk
 
+  integer, dimension(4) :: pointer_to_chunk_in_big_map
+
+  integer, dimension(:, :), allocatable :: mxn_by_rank
+
+  type(MPI_Datatype), dimension(:), allocatable :: send_chunk
+
   integer :: n_left, n_right, n_upper, n_lower, source
 
   type(MPI_Status) :: stat
@@ -73,29 +79,66 @@ program percolate
   call mpi_cart_create(comm, 2, dims, &
     [.true., .false.], .false., comm_cart)
 
-  !call mpi_cart_coords(comm_cart, rank, 2, coords)
-  !call mpi_cart_rank(comm_cart, coords, cart_rank)
+  call mpi_cart_coords(comm_cart, rank, 2, coords)
+  call mpi_cart_rank(comm_cart, coords, cart_rank)
 
   call mpi_cart_shift(comm_cart, 1, 1, n_left, n_right)
   call mpi_cart_shift(comm_cart, 0, 1, n_lower, n_upper)
 
+  ! get m, n array by gathering
+
   M = float(L) / float(dims(1))
   N = float(L) / float(dims(2))
 
-  print *, "mn", rank, M, N
+  pointer_to_chunk_in_big_map(3) = coords(1) * M + 1
+  pointer_to_chunk_in_big_map(4) = coords(2) * N + 1
 
-  call mpi_finalize()
-  stop
+  if (coords(1) == dims(1) - 1) then
+    M = M + mod(L, dims(1))
+  end if
+
+  if (coords(2) == dims(2) - 1) then
+    N = N + mod(L, dims(2))
+  end if
+
+  pointer_to_chunk_in_big_map(1) = M
+  pointer_to_chunk_in_big_map(2) = N
+
+  if (rank == 0) then
+    allocate(mxn_by_rank(4, 0:w_size-1))
+  end if
+
+  call mpi_gather(pointer_to_chunk_in_big_map, 4, mpi_integer, &
+    mxn_by_rank, 4, mpi_integer, 0, comm)
+
+  if (rank == 0) then
+    allocate(send_chunk(0:w_size-1))
+
+    do i = 0, w_size - 1
+      call mpi_type_vector(mxn_by_rank(2, i), mxn_by_rank(1, i), L, mpi_integer, send_chunk(i))
+      call mpi_type_commit(send_chunk(i))
+    end do
+  end if
+
+  !coords(1) = coords(1) * mxn_by_rank(i, 1) + 1
+  !coords(2) = coords(2) * mxn_by_rank(i, 2) + 1
+
+  !print *, "coords", rank, coords
+  !print *, "mn", rank, M, N, rest_m, rest_n
+
+  !if (rank == 0) print *, mxn_by_rank(:, 1)
+
+  !call mpi_finalize()
+  !stop
 
   call mpi_type_contiguous(M, mpi_integer, column)
   call mpi_type_vector(N, 1, M+2, mpi_integer, row)
 
-  call mpi_type_vector(N, M, L, mpi_integer, inner_big)
   call mpi_type_vector(N, M, M+2, mpi_integer, inner_chunk)
 
   call mpi_type_commit(column)
   call mpi_type_commit(row)
-  call mpi_type_commit(inner_big)
+  !call mpi_type_commit(inner_big)
   call mpi_type_commit(inner_chunk)
 
   if (rank == 0) then
@@ -118,12 +161,12 @@ program percolate
 
   if (rank == 0) then
     do i = 1, w_size - 1
-      call mpi_cart_coords(comm_cart, i, 2, coords)
-      coords(1) = coords(1) * M + 1
-      coords(2) = coords(2) * N + 1
+      !call mpi_cart_coords(comm_cart, i, 2, coords)
+      !coords(1) = coords(1) * mxn_by_rank(i, 1) + 1
+      !coords(2) = coords(2) * mxn_by_rank(i, 2) + 1
 
       call mpi_ssend( &
-        big_map(coords(1), coords(2)), 1, inner_big, &
+        big_map(mxn_by_rank(3, i), mxn_by_rank(4, i)), 1, send_chunk(i), &
         i, 0, comm_cart &
       )
     end do
@@ -141,6 +184,9 @@ program percolate
   !  print *
   !end if
 
+  !if(rank == 2) print *, "c",  map_chunk(1:M, 1:N)
+  !call mpi_finalize
+  !stop
 
   clustering_iter = 1
   do
@@ -211,7 +257,7 @@ program percolate
       coords(2) = coords(2) * N + 1
 
       call mpi_recv( &
-        big_map(coords(1), coords(2)), 1, inner_big, &
+        big_map(mxn_by_rank(3, i), mxn_by_rank(4, i)), 1, send_chunk(i), &
         i, 0, comm_cart, mpi_status_ignore &
       )
 
