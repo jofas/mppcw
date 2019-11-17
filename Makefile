@@ -2,7 +2,8 @@ FC=           mpifort
 FFLAGS=       -O3
 EXE_PAR=      percolate_par
 EXE_SER=      percolate_ser
-FSRC=         src/uni.f90 src/cli_info.f90 src/io.f90
+FSRC=         src/uni.f90 src/cli_info.f90 src/io.f90 \
+							src/cart.f90 src/scatter_info.f90
 OBJ=          $(FSRC:src/%.f90=%.o)
 
 .PHONY: all
