@@ -61,7 +61,7 @@ program percolate
 
   call scatter(scatter_info, map, chunk, chunk_type, rank, w_size, cart_comm)
 
-  call cluster(chunk, M, N, neighbors_, int(L * cli%print_iter_factor), cart_comm)
+  call cluster(chunk, M, N, L, neighbors_, int(L * cli%print_iter_factor), cart_comm)
 
   call gather(scatter_info, map, chunk, chunk_type, rank, w_size, cart_comm)
 
@@ -112,9 +112,9 @@ contains
   end
 
 
-  subroutine cluster(chunk, M, N, neighbors_, print_modulus, cart_)
+  subroutine cluster(chunk, M, N, L, neighbors_, print_modulus, cart_)
     integer, dimension(0:M + 1, 0:N + 1), intent(inout) :: chunk
-    integer, intent(in) :: M, N, print_modulus
+    integer, intent(in) :: M, N, L, print_modulus
     type(Neighbors), intent(in) :: neighbors_
     type(CartComm), intent(in) :: cart_
 
@@ -134,7 +134,7 @@ contains
 
       sum_old = sum_
 
-      call print_info(i, sum_, print_modulus)
+      call print_map_average(i, sum_, L, print_modulus)
 
       i = i + 1
     end do
@@ -157,8 +157,8 @@ contains
   end
 
 
-  subroutine print_info(i, sum_, modulus)
-    integer, intent(in) :: i, sum_, modulus
+  subroutine print_map_average(i, sum_, L, modulus)
+    integer, intent(in) :: i, sum_, L, modulus
 
     if (mod(i, modulus) == 0 .and. rank == 0 ) then
       print *, "percolate: average cell value of map on step ", &
