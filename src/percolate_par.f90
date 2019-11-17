@@ -11,11 +11,6 @@ program percolate
   ! from the left most column and finds its way to the
   ! right most column.
   !
-  ! It should be noted here, that, while the percolation is
-  ! searched from left to right, the output files genera-
-  ! ted, display the matix bottom to top. That means, the
-  ! last column is displayed as the first row.
-  !
 
   use io
   use uni
@@ -69,9 +64,9 @@ program percolate
   dims(:) = 0
   call mpi_dims_create(w_size, 2, dims)
 
-  ! this thing thinks, like david, that a matrix can be
-  ! thought of as a euclidean coordinate system, which is
-  ! just rediculous and confusing.
+  ! this thing thinks, like dr henty, that a 2d array can
+  ! be thought of as a 2d euclidean space (x-axis as hori-
+  ! zontal) instead of a matrix, which is just confusing.
   call mpi_cart_create(comm, 2, dims, &
     [.true., .false.], .false., comm_cart)
 
@@ -193,8 +188,9 @@ program percolate
 
     big_elem_sum_old = big_elem_sum
 
-    if (mod(clustering_iter, int(L * 0.5)) == 0 &
-      .and. rank == 0) &
+    if ( mod( clustering_iter &
+            , int(L * cli%print_iter_factor) ) == 0 &
+        .and. rank == 0 ) &
     then
       print *, "percolate: average cell value of map on step ", &
         clustering_iter, " is ", float(big_elem_sum) / float(L ** 2)

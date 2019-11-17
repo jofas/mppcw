@@ -26,6 +26,7 @@ module io
     integer :: print_n_clusters
     real    :: density_of_filled_cells
     character(len = STR_LEN) :: pgm_file_path
+    real    :: print_iter_factor
   contains
     procedure, private :: parse_argument
     procedure, private :: set_default
@@ -115,6 +116,11 @@ contains
         call read_command_value(i)
         self%pgm_file_path = trim(cli_in)
 
+      case("--print_iter_factor")
+        call read_command_value(i)
+
+        self%print_iter_factor = parse_command_to_real()
+
       case("--help", "-h")
         call write_help_msg()
         stop
@@ -142,6 +148,7 @@ contains
     self%print_n_clusters        = 20 ** 2
     self%density_of_filled_cells = .4
     self%pgm_file_path           = "map.pgm"
+    self%print_iter_factor       = 0.5
   end
 
 
