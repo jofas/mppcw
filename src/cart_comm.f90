@@ -1,10 +1,14 @@
 module cart_comm
   !
   ! Module containing a wrapper around a 2d cartesian topology
-  ! communication handle (CartComm) and a neighbor type that
-  ! holds the information for where and how to halo swap.
+  ! communication handle (CartComm).
   !
-
+  ! CartComm does all the message passing of percolate:
+  !
+  !   * scattering and gathering the map to/from its chunks
+  !
+  !   * halo swapping between neighboring processes
+  !
   use mpi_f08
 
   implicit none
@@ -39,12 +43,6 @@ module cart_comm
 contains
 
   subroutine init_cart_comm(self, L, comm)
-    !
-    ! Initializes the 2d cartesian communicator. The wrapper
-    ! contains some more useful information in connection
-    ! with the topology, namely the coordinates of the
-    ! calling process and the dimensions of the topology.
-    !
     type(CartComm), intent(inout) :: self
     integer, intent(in) :: L
     type(MPI_Comm), intent(in) :: comm
@@ -56,6 +54,15 @@ contains
 
 
   subroutine init_comm(self, comm)
+    !
+    ! Builds the 2d cartesian communicator from comm and
+    ! saves some more information about the environment
+    ! (how the dimensions are split among processes, the
+    ! amount of processes (w_size) and the rank of the
+    ! calling process, which is needed later for identifi-
+    ! cation of its neighbors and which chunk is passed to
+    ! the process).
+    !
     type(CartComm), intent(inout) :: self
     type(MPI_Comm), intent(in) :: comm
 
@@ -77,6 +84,31 @@ contains
 
 
   subroutine init_scatter_info(self, L)
+    !
+    ! ScatterInfo contains information on how to scatter
+    ! and gather the map to/from its chunks, which are
+    ! distributed among the processes. It is a rather in-
+    ! tricate data structure, because it differs depending
+    ! on the calling processes. If the root process calls
+    ! this routine, ScatterInfo contains information on
+    ! how to send/receive data from/to the map, while all
+    ! other processes contain information on how to send/
+    ! receive data from/to chunks.
+    !
+    ! The root process ScatterInfo instance is more com-
+    ! plex. For each process 1...|amount of processes| it
+    ! contains a pointer to the first element of the chunk
+    ! and a datatype (strided vector) for how to send the
+    ! chunk. The other processes just have a datatype for
+    ! receiving the chunk in its inner container (without
+    ! the halos).
+    !
+    ! The chunks may differ between processes (when the
+    ! amount of processes and L are not symmetric). This
+    ! is the reason every process sends information about
+    ! its chunk to the root process which then builds its
+    ! ScatterInfo instance.
+    !
     type(CartComm), intent(inout) :: self
     integer, intent(in) :: L
 
@@ -113,7 +145,7 @@ contains
   subroutine init_neighbors(self)
     !
     ! Initializes the neighbor container (the four neighbor
-    ! processes and types for swapping halos.
+    ! processes and types for swapping halos).
     !
     type(CartComm), intent(inout) :: self
 
@@ -139,6 +171,13 @@ contains
   subroutine init_scatter_info_gather_chunk_info( &
     self, Ms, Ns, gather_container &
   )
+    !
+    ! Gather the information about the chunks and build the
+    ! pointers to the first element of a chunk. The cor-
+    ! responding types are initialized in
+    ! init_scatter_info_types. Only called from the root
+    ! process.
+    !
     type(CartComm), intent(inout) :: self
     integer, dimension(self%w_size - 1), intent(out) :: Ms, Ns
     integer, dimension(4, 0:self%w_size - 1), intent(in) &
@@ -153,6 +192,11 @@ contains
 
 
   subroutine init_scatter_info_types(self, Ms, Ns, L)
+    !
+    ! These are the types for scattering/gathering the
+    ! chunks to/from the map. Only called from the root
+    ! process.
+    !
     type(CartComm), intent(inout) :: self
     integer, dimension(self%w_size - 1), intent(in) :: Ms, Ns
     integer, intent(in) :: L
@@ -162,9 +206,8 @@ contains
     allocate(self%scatter_info%types(self%w_size - 1))
 
     do i = 1, self%w_size - 1
-      call mpi_type_vector( &
-        Ns(i), Ms(i), L, mpi_integer, self%scatter_info%types(i) &
-      )
+      call mpi_type_vector(Ns(i), Ms(i), L, mpi_integer, &
+        self%scatter_info%types(i))
 
       call mpi_type_commit(self%scatter_info%types(i))
     end do
@@ -172,6 +215,13 @@ contains
 
 
   subroutine get_chunk_info(self, M, N, M_PTR, N_PTR, L)
+    !
+    ! The chunks are distributed as equal as possible.
+    ! If L and the amount of processes is not symmetric,
+    ! the processes at the edges take the rest of
+    ! L mod |amount of processes per dimension| as additi-
+    ! onal chunk size.
+    !
     type(CartComm), intent(in)  :: self
     integer, intent(out) :: M, N, M_PTR, N_PTR
     integer, intent(in) :: L
@@ -196,7 +246,36 @@ contains
   end
 
 
+  subroutine scatter(self, map, chunk)
+    !
+    ! Subroutine scattering map to the chunks. The root
+    ! process synchronously sends the chunk to the cor-
+    ! responding process.
+    !
+    type(CartComm), intent(in) :: self
+    integer, dimension(:, :), intent(in) :: map
+    integer, dimension(0:self%M + 1, 0:self%N + 1), &
+      intent(inout) :: chunk
+
+    if (self%rank == 0) then
+      call ssend_map(self, map)
+
+      chunk(1:self%M, 1:self%N) =  map(:self%M, :self%N)
+    else
+      call mpi_recv( &
+        chunk(1, 1), 1, self%scatter_info%chunk_type, &
+        0, 0, self%comm, mpi_status_ignore &
+      )
+    end if
+  end
+
+
   subroutine gather(self, map, chunk)
+    !
+    ! Subroutine gathering map from the chunks. Every
+    ! process synchronously sends its chunk to the root
+    ! process.
+    !
     type(CartComm), intent(in) :: self
     integer, dimension(:, :), intent(inout) :: map
     integer, dimension(0:self%M + 1, 0:self%N + 1), &
@@ -218,6 +297,9 @@ contains
 
 
   subroutine ssend_map(self, map)
+    !
+    ! Send a chunk defined by its pointer and type.
+    !
     type(CartComm), intent(in) :: self
     integer, dimension(:, :), intent(in) :: map
 
@@ -235,6 +317,9 @@ contains
 
 
   subroutine recv_map(self, map)
+    !
+    ! Receive a chunk defined by its pointer and type.
+    !
     type(CartComm), intent(in) :: self
     integer, dimension(:, :), intent(inout) :: map
 
@@ -252,6 +337,9 @@ contains
 
 
   subroutine halo_swap(self, chunk)
+    !
+    ! Swap chunk halos between neighboring processes.
+    !
     type(CartComm), intent(in) :: self
     integer, dimension(0:self%M + 1, 0:self%N + 1), &
       intent(inout) :: chunk
@@ -291,24 +379,5 @@ contains
       self%neighbors_%upper, 0, &
       self%comm, mpi_status_ignore &
     )
-  end
-
-
-  subroutine scatter(self, map, chunk)
-    type(CartComm), intent(in) :: self
-    integer, dimension(:, :), intent(in) :: map
-    integer, dimension(0:self%M + 1, 0:self%N + 1), &
-      intent(inout) :: chunk
-
-    if (self%rank == 0) then
-      call ssend_map(self, map)
-
-      chunk(1:self%M, 1:self%N) =  map(:self%M, :self%N)
-    else
-      call mpi_recv( &
-        chunk(1, 1), 1, self%scatter_info%chunk_type, &
-        0, 0, self%comm, mpi_status_ignore &
-      )
-    end if
   end
 end

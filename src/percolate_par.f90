@@ -68,6 +68,9 @@ program percolate
 contains
 
   subroutine init_map()
+    !
+    ! Initialize the map. Only called by the root process.
+    !
     integer :: i, j, free_cell_count
 
     allocate(map(L, L))
