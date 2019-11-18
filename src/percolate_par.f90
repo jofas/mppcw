@@ -28,17 +28,18 @@ program percolate
   type(Neighbors) :: neighbors_
 
   integer :: rank, w_size
-  integer :: L, M, N
+  integer :: L
 
   integer, dimension(:, :), allocatable :: map, chunk
 
   type(MPI_Datatype) :: chunk_type
 
+
   cli = read_from_cli()
 
-  L = cli%matrix_dimension
-
   call rinit(cli%seed)
+
+  L = cli%matrix_dimension
 
   call mpi_init()
 
@@ -46,32 +47,62 @@ program percolate
   call mpi_comm_size(mpi_comm_world, w_size)
 
   if (rank == 0) then
-    call init_map(map, L, cli%density_of_filled_cells)
+    print *, "percolate: params are L = ", L, " rho = ", &
+      cli%density_of_filled_cells, " seed = ", cli%seed
   end if
 
-  call init_cart(cart_comm, rank, w_size, mpi_comm_world)
-  call init_scatter_info(scatter_info, rank, w_size, L, cart_comm)
+  call init( &
+    map, chunk, chunk_type, scatter_info, cart_comm, &
+    rank, w_size, L, cli%density_of_filled_cells &
+  )
 
-  M = scatter_info%M
-  N = scatter_info%N
+  call scatter( &
+    scatter_info, map, chunk, chunk_type, rank, w_size, &
+    cart_comm &
+  )
 
-  call init_neighbors(neighbors_, M, N, cart_comm)
-  call init_chunk(chunk, M, N)
-  call init_chunk_type(chunk_type, M, N)
+  call cluster( &
+    chunk, scatter_info%M, scatter_info%N, L, neighbors_, &
+    int(L * cli%print_iter_factor), cart_comm &
+  )
 
-  call scatter(scatter_info, map, chunk, chunk_type, rank, w_size, cart_comm)
-
-  call cluster(chunk, M, N, L, neighbors_, int(L * cli%print_iter_factor), cart_comm)
-
-  call gather(scatter_info, map, chunk, chunk_type, rank, w_size, cart_comm)
+  call gather( &
+    scatter_info, map, chunk, chunk_type, rank, w_size, &
+    cart_comm &
+  )
 
   if (rank == 0) then
+    call percolates(map, L)
+
     call pgm_write(cli%pgm_file_path, map, &
       cli%print_n_clusters)
   end if
+
   call mpi_finalize()
 
 contains
+
+  subroutine init(map, chunk, chunk_type, scatter_info, cart_, rank, w_size, L, density)
+    integer, dimension(:, :), allocatable, intent(out) :: map
+    integer, dimension(:, :), allocatable, intent(out) :: chunk
+    type(MPI_Datatype), intent(out) :: chunk_type
+    type(ScatterInfo), intent(out) :: scatter_info
+    type(CartComm), intent(out) :: cart_
+    integer, intent(in) :: rank, w_size, L
+    real, intent(in) :: density
+
+    if (rank == 0) then
+      call init_map(map, L, cli%density_of_filled_cells)
+    end if
+
+    call init_cart(cart_, rank, w_size, mpi_comm_world)
+    call init_scatter_info(scatter_info, rank, w_size, L, cart_)
+
+    call init_neighbors(neighbors_, scatter_info%M, scatter_info%N, cart_)
+    call init_chunk(chunk, scatter_info%M, scatter_info%N)
+    call init_chunk_type(chunk_type, scatter_info%M, scatter_info%N)
+  end
+
 
   subroutine init_map(map, L, d)
     integer, dimension(:, :), allocatable, intent(out) :: map
@@ -92,7 +123,11 @@ contains
         end if
       end do
     end do
+
+    print *, "percolate: rho = ", d, " actual density = ", &
+      float(L ** 2 - free_cell_count) / float(L ** 2)
   end
+
 
   subroutine init_chunk(chunk, M, N)
     integer, dimension(:, :), allocatable, intent(out) :: chunk
@@ -163,6 +198,33 @@ contains
     if (mod(i, modulus) == 0 .and. rank == 0 ) then
       print *, "percolate: average cell value of map on step ", &
         i, " is ", float(sum_) / float(L ** 2)
+    end if
+  end
+
+
+  subroutine percolates(map, L)
+    integer, dimension(L, L), intent(in) :: map
+    integer, intent(in) :: L
+
+    integer :: i, j
+
+    logical :: does_percolate
+
+    do i = 1, L
+      if (map(i, 1) > 0) then
+        do j = 1, L
+          if (map(i, 1) == map(j, L)) then
+            does_percolate = .true.
+            exit
+          end if
+        end do
+      end if
+    end do
+
+    if (does_percolate) then
+      print *, "percolate: cluster DOES percolate"
+    else
+      print *, "percolate: cluster does NOT percolate"
     end if
   end
 end
