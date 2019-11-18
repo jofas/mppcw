@@ -16,34 +16,23 @@ Build/install
 If you have a copy of this project, open up a terminal and
 type the following commands, in order to build percolate:
 
-```
-cd path/to/the/project
-make
-```
+.. code:: bash
 
-Once you have done that, optionally, you can also install
-it on your Linux/Unix/Mac operating system:
-
-```
-make install
-```
-
-Remember that you need certain privileges to install a
-program. Try with ```sudo make install```, if installation
-fails.
+    cd path/to/the/project
+    make
 
 For more options and some help with building run:
 
-```
-make help
-```
+.. code:: bash
+
+    make help
 
 
 Run percolate
 -------------
 
 After percolate is built, you can run it, simply by typing
-```./percolate``` in your terminal (```percolate``` if
+``./percolate`` in your terminal (``percolate`` if
 you installed it system wide)
 
 
@@ -51,4 +40,4 @@ Command line interface
 ----------------------
 
 You can see the command line options of percolate if you
-run ```./percolate -h```.
+run ``./percolate -h``.
