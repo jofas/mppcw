@@ -15,7 +15,7 @@ percolate v0.1.0.
 
 The distributed version of percolate v0.1.0 uses MPI
 for performing a distributed version of the clustering 
-process. MPI must be install in order to run the parallel
+process. MPI must be installed in order to run the parallel
 version of percolate v0.1.0.
 
 
@@ -51,13 +51,88 @@ running ```make```.
 Run percolate
 -------------
 
-After percolate is built, you can run it, simply by typing
-``./percolate`` in your terminal (``percolate`` if
-you installed it system wide)
+* ```percolate_ser```
+
+  After ```percolate_ser``` is built, you can run it, 
+  simply by typing ``./percolate_ser`` in your terminal.
+
+* ```percolate_par```
+
+  Depending on your MPI implmentation, but in general
+  executing ```percolate_par``` should look something like:
+  ```mpiexec -n 4 ./percolate_par```.
 
 
 Command line interface
 ----------------------
 
-You can see the command line options of percolate if you
-run ``./percolate -h``.
+Running ```./percolate_[par|ser] -h``` will show you in 
+detail the command line interface.
+
+The output of the ```-h``` option:
+
+```
+ percolate v0.1.0                                         
+                                                          
+ Program for computing, whether any cluster in a          
+ randomly generated matrix percolates.                    
+                                                          
+ Usage: percolate_[par|ser] [seed] [options ...]          
+                                                          
+                                                          
+ seed: INT Seed for the random number generator.          
+           DEFAULT: 1564                                  
+                                                          
+                                                          
+ options:                                                 
+                                                          
+     -h, --help                    Prints this help mes-  
+                                   sage.                  
+                                                          
+         --version                 Prints the version of  
+                                   this program.          
+                                                          
+     -l, --length            INT   Sets the dimension of  
+                                   the matrix.            
+                                   DEFAULT: 20.           
+                                                          
+     -d, --density           FLOAT Sets the density of    
+                                   the full cells.        
+                                   DEFAULT: 0.4.          
+                                                          
+     -p, --print_n_clusters  INT   Sets the amount of     
+                                   clusters displayed in  
+                                   the .pgm file.         
+                                   DEFAULT: max.          
+                                   Can display a maximum  
+                                   of the 9 biggest       
+                                   clusters.              
+                                                          
+         --pgm_file_path     PATH  Sets the path for the  
+                                   .pgm file.             
+                                   DEFAULT: map.pgm       
+                                                          
+         --print_iter_factor FLOAT Sets the factor of how 
+                                   often the average cell 
+                                   value during cluster-  
+                                   ing is printed.        
+                                   iter % int(L * factor) 
+                                   DEFAULT: 0.5           
+                                   This flag is irrele-   
+                                   vant for the serial    
+                                   version of percolate.  
+```
+
+
+Project structure
+-----------------
+
+
+TODO: src and out folders
+
+
+Note on the decomposition used in the parallel version
+------------------------------------------------------
+
+TODO
+
