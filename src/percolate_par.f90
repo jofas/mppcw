@@ -133,6 +133,8 @@ contains
     i = 1
     sum_old = 0
     do
+      sum_ = 0
+
       call halo_swap(comm, chunk)
 
       call cluster_step()
@@ -175,7 +177,11 @@ contains
     !
     integer, intent(in) :: i, sum_
 
-    if (mod(i, int(L * cli%print_iter_factor)) == 0 &
+    integer :: modulus
+
+    modulus = int(L * cli%print_iter_factor)
+
+    if (modulus /= 0 .and. mod(i, modulus) == 0 &
       .and. comm%rank == 0) &
     then
       print *, "percolate: average cell value of map on step ", &
