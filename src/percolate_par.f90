@@ -21,34 +21,11 @@ program percolate
   implicit none
 
   type(CLIResults) :: cli
-
   type(CartComm) :: comm
-
   integer :: L, M, N
-
   integer, dimension(:, :), allocatable :: map, chunk
 
-  cli = read_from_cli()
-
-  call rinit(cli%seed)
-
-  L = cli%matrix_dimension
-
-  call mpi_init()
-
-  call init_cart_comm(comm, L, mpi_comm_world)
-
-  M = comm%M
-  N = comm%N
-
-  if (comm%rank == 0) then
-    print *, "percolate: params are L = ", L, " rho = ", &
-      cli%density_of_filled_cells, " seed = ", cli%seed
-
-    call init_map()
-  end if
-
-  call init_chunk()
+  call init()
 
   call scatter(comm, map, chunk)
 
@@ -56,20 +33,61 @@ program percolate
 
   call gather(comm, map, chunk)
 
-  if (comm%rank == 0) then
-    call percolates()
-
-    call pgm_write(cli%pgm_file_path, map, &
-      cli%print_n_clusters)
-  end if
-
-  call mpi_finalize()
+  call finalize()
 
 contains
 
+  subroutine init()
+    !
+    ! Initialize all components (random number generator,
+    ! MPI session, map (only on root process), chunk,
+    ! 2d cartesion communicator and variables describing
+    ! the format of the map/the chunk (L, M, N).
+    !
+    cli = read_from_cli()
+
+    call rinit(cli%seed)
+
+    L = cli%matrix_dimension
+
+    call mpi_init()
+
+    call init_cart_comm(comm, L, mpi_comm_world)
+
+    M = comm%M
+    N = comm%N
+
+    if (comm%rank == 0) then
+      print *, "percolate: params are L = ", L, " rho = ", &
+        cli%density_of_filled_cells, " seed = ", cli%seed
+
+      call init_map()
+    end if
+
+    call init_chunk()
+  end
+
+
+  subroutine finalize()
+    !
+    ! Write .pgm output file and close the MPI session.
+    !
+    if (comm%rank == 0) then
+      call percolates()
+
+      call pgm_write(cli%pgm_file_path, map, &
+        cli%print_n_clusters)
+    end if
+
+    call mpi_finalize()
+  end
+
+
   subroutine init_map()
     !
-    ! Initialize the map. Only called by the root process.
+    ! Initialize the map.
+    !
+    ! Only called by the root process.
     !
     integer :: i, j, free_cell_count
 
@@ -100,14 +118,15 @@ contains
 
   subroutine cluster()
     !
-    ! Performs the clustering operation. First the halos of the chunks
-    ! are swapped with its neighbors. Then a cluster step is performed
-    ! (every cell of the inner map is set to its biggest neighbor).
+    ! Performs the clustering operation. First the halos of
+    ! the chunks are swapped with its neighbors. Then a
+    ! cluster step is performed (every cell of the inner
+    ! chunk is set to its biggest neighbor).
     !
-    ! Afterwards the sum of every inner cell of the chunk is reduced
-    ! over every chunk and broadcasted to every process (mpi_allreduce).
-    ! If the gathered sum did not change this cluster step, clustering
-    ! is finished.
+    ! Afterwards the sum of every inner cell of the chunk
+    ! is reduced over every chunk and broadcasted to every
+    ! process (mpi_allreduce). If the gathered sum did not
+    ! change this cluster step, clustering is finished.
     !
     integer :: i, sum_, sum_old
 
@@ -149,6 +168,11 @@ contains
 
 
   subroutine print_map_average(i, sum_)
+    !
+    ! Prints the average over every cell in map at certain
+    ! intervals. The interval is determined by L * factor.
+    ! The factor is provided by the cli.
+    !
     integer, intent(in) :: i, sum_
 
     if (mod(i, int(L * cli%print_iter_factor)) == 0 &

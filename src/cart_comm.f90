@@ -43,6 +43,12 @@ module cart_comm
 contains
 
   subroutine init_cart_comm(self, L, comm)
+    !
+    ! Initializes the actual communicator, the information
+    ! on how to scatter/gather the map to/from the chunks
+    ! and the neighbors of the calling process used for
+    ! halo swapping.
+    !
     type(CartComm), intent(inout) :: self
     integer, intent(in) :: L
     type(MPI_Comm), intent(in) :: comm
@@ -112,32 +118,18 @@ contains
     type(CartComm), intent(inout) :: self
     integer, intent(in) :: L
 
-    integer, dimension(self%w_size - 1) :: Ms, Ns
     integer, dimension(4, 0:self%w_size - 1) :: gather_container
 
-    integer :: M, N, M_PTR, N_PTR
-
-    call get_chunk_info(self, M, N, M_PTR, N_PTR, L)
-
-    self%M = M
-    self%N = N
-
-    call mpi_gather([M, N, M_PTR, N_PTR], 4, mpi_integer, &
-      gather_container, 4, mpi_integer, 0, self%comm)
+    call init_chunk_info_and_gather(self, gather_container, L)
 
     if (self%rank == 0) then
 
-      call init_scatter_info_gather_chunk_info(self, Ms, &
-        Ns, gather_container)
-
-      call init_scatter_info_types(self, Ms, Ns, L)
+      call init_scatter_info_root(self, gather_container, L)
 
     else
 
-      call mpi_type_vector(self%N, self%M, self%M+2, &
-        mpi_integer, self%scatter_info%chunk_type)
+      call init_scatter_info_not_root(self)
 
-      call mpi_type_commit(self%scatter_info%chunk_type)
     end if
   end
 
@@ -168,40 +160,117 @@ contains
   end
 
 
-  subroutine init_scatter_info_gather_chunk_info( &
-    self, Ms, Ns, gather_container &
-  )
+  subroutine init_chunk_info_and_gather(self, gather_container, L)
+    !
+    ! The chunks are distributed as equal as possible.
+    ! If L and the amount of processes is not symmetric,
+    ! the processes at the edges take the rest of
+    ! L mod |amount of processes per dimension| as additi-
+    ! onal chunk size.
+    !
+    ! This routine returns a gather container (only on the
+    ! root process). For each process, it contains a row
+    ! with the information:
+    !
+    !   1. M
+    !
+    !   2. N
+    !
+    !   3. M_PTR
+    !
+    !   4. N_PTR
+    !
+    ! The gather container is gathered to the root process
+    ! which uses this information to build the pointers to
+    ! the chunks. M_PTR, N_PTR point to the first element
+    ! of the chunk and M, N are used to define a strided
+    ! vector type for sending the chunk.
+    !
+    type(CartComm), intent(inout) :: self
+    integer, dimension(4, 0:self%w_size - 1), intent(out) &
+      :: gather_container
+    integer, intent(in) :: L
+
+    integer, dimension(2) :: coords
+    integer :: M_PTR, N_PTR
+
+    call mpi_cart_coords(self%comm, self%rank, 2, coords)
+
+    self%M = float(L) / float(self%dims(1))
+    self%N = float(L) / float(self%dims(2))
+
+    M_PTR = coords(1) * self%M + 1
+    N_PTR = coords(2) * self%N + 1
+
+    if (coords(1) == self%dims(1) - 1) then
+      self%M = self%M + mod(L, self%dims(1))
+    end if
+
+    if (coords(2) == self%dims(2) - 1) then
+      self%N = self%N + mod(L, self%dims(2))
+    end if
+
+    call mpi_gather([self%M, self%N, M_PTR, N_PTR], &
+      4, mpi_integer, gather_container, 4, mpi_integer, &
+      0, self%comm)
+  end
+
+
+  subroutine init_scatter_info_root(self, gather_container, L)
     !
     ! Gather the information about the chunks and build the
     ! pointers to the first element of a chunk. The cor-
     ! responding types are initialized in
-    ! init_scatter_info_types. Only called from the root
-    ! process.
+    ! init_scatter_info_types.
+    !
+    ! Only called from the root process.
     !
     type(CartComm), intent(inout) :: self
-    integer, dimension(self%w_size - 1), intent(out) :: Ms, Ns
     integer, dimension(4, 0:self%w_size - 1), intent(in) &
       :: gather_container
+    integer, intent(in) :: L
 
     allocate(self%scatter_info%ptrs(2, self%w_size - 1))
+
     self%scatter_info%ptrs(:, :) = gather_container(3:, 1:)
 
-    Ms(:) = gather_container(1, 1:)
-    Ns(:) = gather_container(2, 1:)
+    call init_scatter_info_root_types(self, gather_container, L)
   end
 
 
-  subroutine init_scatter_info_types(self, Ms, Ns, L)
+  subroutine init_scatter_info_not_root(self)
     !
-    ! These are the types for scattering/gathering the
-    ! chunks to/from the map. Only called from the root
-    ! process.
+    ! Fills the scatter info with a strided vector type
+    ! used for sending/receiving a chunk to/from the map.
+    !
+    ! Only called from non root processes.
     !
     type(CartComm), intent(inout) :: self
-    integer, dimension(self%w_size - 1), intent(in) :: Ms, Ns
+
+    call mpi_type_vector(self%N, self%M, self%M+2, &
+      mpi_integer, self%scatter_info%chunk_type)
+
+    call mpi_type_commit(self%scatter_info%chunk_type)
+  end
+
+
+  subroutine init_scatter_info_root_types(self, gather_container, L)
+    !
+    ! These are the strided vector types for scattering/
+    ! gathering the chunks to/from the map.
+    !
+    ! Only called from the root process.
+    !
+    type(CartComm), intent(inout) :: self
+    integer, dimension(4, 0:self%w_size - 1), intent(in) &
+      :: gather_container
     integer, intent(in) :: L
 
+    integer, dimension(self%w_size - 1) :: Ms, Ns
     integer :: i
+
+    Ms(:) = gather_container(1, 1:)
+    Ns(:) = gather_container(2, 1:)
 
     allocate(self%scatter_info%types(self%w_size - 1))
 
@@ -211,38 +280,6 @@ contains
 
       call mpi_type_commit(self%scatter_info%types(i))
     end do
-  end
-
-
-  subroutine get_chunk_info(self, M, N, M_PTR, N_PTR, L)
-    !
-    ! The chunks are distributed as equal as possible.
-    ! If L and the amount of processes is not symmetric,
-    ! the processes at the edges take the rest of
-    ! L mod |amount of processes per dimension| as additi-
-    ! onal chunk size.
-    !
-    type(CartComm), intent(in)  :: self
-    integer, intent(out) :: M, N, M_PTR, N_PTR
-    integer, intent(in) :: L
-
-    integer, dimension(2) :: coords
-
-    call mpi_cart_coords(self%comm, self%rank, 2, coords)
-
-    M = float(L) / float(self%dims(1))
-    N = float(L) / float(self%dims(2))
-
-    M_PTR = coords(1) * M + 1
-    N_PTR = coords(2) * N + 1
-
-    if (coords(1) == self%dims(1) - 1) then
-      M = M + mod(L, self%dims(1))
-    end if
-
-    if (coords(2) == self%dims(2) - 1) then
-      N = N + mod(L, self%dims(2))
-    end if
   end
 
 
@@ -300,6 +337,8 @@ contains
     !
     ! Send a chunk defined by its pointer and type.
     !
+    ! Only called by the root process.
+    !
     type(CartComm), intent(in) :: self
     integer, dimension(:, :), intent(in) :: map
 
@@ -319,6 +358,8 @@ contains
   subroutine recv_map(self, map)
     !
     ! Receive a chunk defined by its pointer and type.
+    !
+    ! Only called by the root process.
     !
     type(CartComm), intent(in) :: self
     integer, dimension(:, :), intent(inout) :: map
