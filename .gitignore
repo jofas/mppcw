@@ -1,2 +1,4 @@
 percolate_*
 map.pgm
+*.o
+*.mod

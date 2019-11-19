@@ -6,26 +6,36 @@ percolate. A cell of such a matrix can be either full or
 empty. Every cell has 4 neighbor cells and builds a cluster
 with them (and therefore with their neighbors' neighbors,
 making it a recursive relationship). A cluster of free
-cells percolates, if such a cluster starts from the top and
-continues all the way down to the bottom of the matrix.
+cells percolates, if such a cluster starts from the left
+most column and continues all the way to the right most
+column of the matrix.
+
+This project contains a serial and a parallel version of
+percolate v0.1.0.
+
+The distributed version of percolate v0.1.0 uses MPI
+for performing a distributed version of the clustering 
+process. MPI must be install in order to run the parallel
+version of percolate v0.1.0.
 
 
-Build/install
--------------
+Build
+-----
 
 If you have a copy of this project, open up a terminal and
 type the following commands, in order to build percolate:
 
 ```
-    cd path/to/the/project
-    make
+cd path/to/the/project
+make
 ```
 
-For more options and some help with building run:
-
-```
-    make help
-```
+This will result in two executables ```percolate_par``` and
+```percolate_ser```. If only one of the two versions is
+desired, run ```make percolate_[par|ser]```. While the use
+of ```make``` or ```make all``` automatically cleans up the
+project, ```make percolate_[par|ser]``` does not. Run
+```make clean``` for cleaning up the project.
 
 
 Run percolate
