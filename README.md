@@ -37,6 +37,16 @@ of ```make``` or ```make all``` automatically cleans up the
 project, ```make percolate_[par|ser]``` does not. Run
 ```make clean``` for cleaning up the project.
 
+By default ```make``` will use Intel's Fortran compiler
+(```ifort``` for the serial version and ```mpif08``` as the
+MPI wrapper for the parallel version of percolate).
+To change this behavior, change the ```FC``` and 
+```FC_PAR``` flags in the ```Makefile``` to your preferred
+compilers. For example, if you'd like to change to the
+GNU Fortran compiler with OpenMPI's ```mpifort``` wrapper,
+set ```FC=gfortran``` and ```FC_PAR=mpifort``` before 
+running ```make```.
+
 
 Run percolate
 -------------
