@@ -1,4 +1,4 @@
-FC_SER=       ifort
+FC=           ifort
 FC_PAR=       mpif08
 
 FFLAGS=       -O3
@@ -27,12 +27,12 @@ $(EXE_PAR): $(OBJ_COMMON) $(OBJ_PAR)
 	@echo Done making $(EXE_PAR).
 
 $(EXE_SER): $(OBJ_COMMON)
-	@$(FC_SER) $^ src/$(EXE_SER).f90 -o $(EXE_SER) $(FFLAGS)
+	@$(FC) $^ src/$(EXE_SER).f90 -o $(EXE_SER) $(FFLAGS)
 	@echo Done making $(EXE_SER).
 
 
 $(OBJ_COMMON): $(FSRC_COMMON)
-	@$(FC_SER) -c $^ $(FFLAGS)
+	@$(FC) -c $^ $(FFLAGS)
 
 $(OBJ_PAR): $(FSRC_PAR)
 	@$(FC_PAR) -c $^ $(FFLAGS)
