@@ -100,11 +100,6 @@ contains
 
         self%density_of_filled_cells = parse_command_to_real()
 
-      case("--seed", "-s")
-        call read_command_value(i)
-
-        self%seed = parse_command_to_int()
-
       case("--print_n_clusters", "-p")
         call read_command_value(i)
 
@@ -133,9 +128,17 @@ contains
         return
 
       case default
-        write (*, *) "Command line arguments are wrong. &
+        if (i == 1) then
+
+          i = 0
+          call read_command_value(i)
+          self%seed = parse_command_to_int()
+
+        else
+          write (*, *) "Command line arguments are wrong. &
                      See -h, --help for further information."
-        stop
+          stop
+        end if
     end select
   end
 
@@ -143,10 +146,10 @@ contains
   subroutine set_default(self)
     class(CLIResults), intent(out) :: self
 
-    self%matrix_dimension        = 20
+    self%matrix_dimension        = 288
     self%seed                    = 1564
     self%print_n_clusters        = 20 ** 2
-    self%density_of_filled_cells = .4
+    self%density_of_filled_cells = .411
     self%pgm_file_path           = "map.pgm"
     self%print_iter_factor       = 0.5
   end

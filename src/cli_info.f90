@@ -8,17 +8,21 @@ module cli_info
 
   character(len=6), parameter :: VERSION = "v0.1.0"
 
-  character(len=57), dimension(45) :: HELP_MSG = (/ &
+  character(len=57), dimension(50) :: HELP_MSG = (/ &
   "percolate " // VERSION // &
   "                                        ", &
   "                                                        ", &
   "Program for computing, whether any cluster in a         ", &
   "randomly generated matrix percolates.                   ", &
   "                                                        ", &
-  "Usage: percolate [options ...]                          ", &
+  "Usage: percolate_[par|ser] [seed] [options ...]         ", &
   "                                                        ", &
   "                                                        ", &
-  "Options:                                                ", &
+  "seed: INT Seed for the random number generator.         ", &
+  "          DEFAULT: 1564                                 ", &
+  "                                                        ", &
+  "                                                        ", &
+  "options:                                                ", &
   "                                                        ", &
   "    -h, --help                    Prints this help mes- ", &
   "                                  sage.                 ", &
@@ -26,25 +30,23 @@ module cli_info
   "        --version                 Prints the version of ", &
   "                                  this program.         ", &
   "                                                        ", &
-  "    -l, --length INT              Sets the dimension of ", &
+  "    -l, --length            INT   Sets the dimension of ", &
   "                                  the matrix.           ", &
   "                                  DEFAULT: 20.          ", &
   "                                                        ", &
-  "    -d, --density FLOAT           Sets the density of   ", &
+  "    -d, --density           FLOAT Sets the density of   ", &
   "                                  the full cells.       ", &
   "                                  DEFAULT: 0.4.         ", &
   "                                                        ", &
-  "    -s, --seed INT                Sets the seed for the ", &
-  "                                  pseudo-random number  ", &
-  "                                  generator.            ", &
-  "                                  DEFAULT: 1564.        ", &
-  "                                                        ", &
-  "    -p, --print_n_clusters INT    Sets the amount of    ", &
+  "    -p, --print_n_clusters  INT   Sets the amount of    ", &
   "                                  clusters displayed in ", &
   "                                  the .pgm file.        ", &
-  "                                  DEFAULT: all.         ", &
+  "                                  DEFAULT: max.         ", &
+  "                                  Can display a maximum ", &
+  "                                  of the 9 biggest      ", &
+  "                                  clusters.             ", &
   "                                                        ", &
-  "        --pgm_file_path PATH      Sets the path for the ", &
+  "        --pgm_file_path     PATH  Sets the path for the ", &
   "                                  .pgm file.            ", &
   "                                  DEFAULT: map.pgm      ", &
   "                                                        ", &
@@ -54,6 +56,9 @@ module cli_info
   "                                  ing is printed.       ", &
   "                                  iter % int(L * factor)", &
   "                                  DEFAULT: 0.5          ", &
+  "                                  This flag is irrele-  ", &
+  "                                  vant for the serial   ", &
+  "                                  version of percolate. ", &
   "                                                        "  &
   /)
 

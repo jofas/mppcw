@@ -3,7 +3,7 @@ rm out/map.pgm
 make
 
 mpirun --hostfile hostfile -n $2 \
-  $1 -l 288 -d 0.411 -p 3 --pgm_file_path "out/map.pgm"
+  $1 -p 3 --pgm_file_path "out/map.pgm"
 
 echo Testing $1
 
