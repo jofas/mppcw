@@ -1,5 +1,5 @@
-FC_SER=       gfortran
-FC_PAR=       mpifort
+FC_SER=       ifort
+FC_PAR=       mpif08
 
 FFLAGS=       -O3
 
