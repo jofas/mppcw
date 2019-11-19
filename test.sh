@@ -1,7 +1,10 @@
 # $1: either "clean" or sequence of processes the parallel
 #     version should be executed with.
 #
-# $2: optional string of arguments for mpiexec
+# $2: optional string of arguments for mpi executor defined
+#     by $3
+#
+# $3: optional different mpi executor than mpirun
 #
 
 DIR=tests
@@ -13,6 +16,12 @@ if [ "$1" == "clean" ]; then
   rm -r $DIR
   echo Cleaned tests
   exit
+fi
+
+if [ "$3" == "" ]; then
+  exc="mpirun"
+else
+  exc=$3
 fi
 
 if [ ! -d $DIR ]; then
@@ -32,7 +41,7 @@ for i in $1; do
   for l in $l_seq; do
     for seed in $seed_seq; do
       echo Testing with i: $i, l: $l, seed: $seed
-      mpirun -n $i $2 percolate_par $seed -l $l --pgm_file_path "$DIR/par.$l.$seed.pgm"
+      $exc -n $i $2 percolate_par $seed -l $l --pgm_file_path "$DIR/par.$l.$seed.pgm"
       if [ -f "$DIR/par.$l.$seed.pgm" ]; then
         if [ "$(diff $DIR/par.$l.$seed.pgm $DIR/ser.$l.$seed.pgm)" == "" ]; then
           echo SUCCESS
