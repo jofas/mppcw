@@ -127,13 +127,6 @@ The output of the ```-h``` option:
 Project structure
 -----------------
 
-* tests/
-
-  contains output .pgm files from ```percolate_ser```. They
-  are used as regression tests for ```percolate_par```, in
-  order to verify that ```percolate_par``` works correctly.
-  
-
 * src/
 
   contains the source code.
@@ -169,18 +162,20 @@ Project structure
 
 * ```test.sh```
 
-  TODO
+  test suite for regression testing ```percolate_par```
+  against output from ```percolate_ser```.
 
 * ```test.pbs```
 
-  TODO
+  wrapper around ```test.sh``` for executing the tests in
+  a job handled by a job scheduler.
 
 
 Note on the decomposition used in the parallel version
 ------------------------------------------------------
 
 You can execute ```percolate_par``` with any amount of 
-MPI processes. However, ```percolate_par`` does not save
+MPI processes. However, ```percolate_par``` does not save
 you from using a useless amount of processes.
 
 This is best explained by an example. Imagine you want to
