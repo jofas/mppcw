@@ -123,6 +123,101 @@ is drawn.
 
 \section{Method} % {{{
 
+Let $A \in \mathbb{N}_0^{n \times n}$ be the matrix that
+is clustered by \perc{}.
+Let $A(i, j);1\leq i, j \leq n$ be the element at the
+$i$th row and $j$th column of $A$.
+An element from $A$ has a state. It is either empty or
+filled.
+\perc{} randomly initializes $A$ with empty and filled
+elements.
+The density of the filled elements $\rho_{goal}$ can be
+defined as a parameter, which is approximated during
+initialization. $n$, as well, is provided as a parameter to
+\perc{}.
+
+Let $\sigma : \mathbb{N}_0 \rightarrow \{empty,filled\}$ be
+a function mapping a non-negative integer to its state:
+\begin{align*}
+  \sigma(x) := \begin{cases}
+    filled &\text{if } x = 0 \\
+    empty  &\text{otherwise}
+  \end{cases}.
+\end{align*}
+
+\begin{proposition}
+  \label{prop:one}
+  Let $x, y \in \mathbb{N}_0$.
+  For every $x: \sigma(x) = empty$, follows: $x > y$, if
+  $\sigma(y) = filled$.
+\end{proposition}
+
+\begin{proof}
+  There exits no smaller non-negative integer than $0$.
+  $\sigma(y) = filled$, only for $y = 0$. Therefore, every
+  number $x$, for which $\sigma(x) = empty$, must be bigger
+  than $y$.
+\end{proof}
+
+Let $\mu$ be the function that returns the maximum value
+of an element and its neighbors:
+\begin{align*}
+  \mu(A, i, j) := \max(A(i,j), A(i-1,j), A(i+1,j),
+                       A(i,j-1), A(i,j+1)).
+\end{align*}
+For now, if $i$ or $j$ equals $0$ or $n + 1$ (in other
+words, if $i$ or $j$ violate the boundaries of $A$), then
+$A(i, j)$ will return $0$.
+
+\begin{proposition}
+  \label{prop:two}
+  If $\sigma(A(i, j)) = empty$, than
+  $\sigma(\mu(A, i, j)) = empty$ as well.
+\end{proposition}
+
+\begin{proof}
+  $\mu(A, i, j)$ returns the maximum of the element
+  $A(i, j)$ and its neighbors, wherefore $\mu(A, i, j) \geq
+  A(i, j)$.
+  From Proposition~\ref{prop:one} follows, that every
+  number $y \in \mathbb{N}_0: \sigma(y) = filled$ must be
+  less than $A(i, j)$, if $\sigma(A(i,j)) = empty$.
+\end{proof}
+
+With Proposition~\ref{prop:two}, we can now safely derive
+a recursive definition of the clustering operation (because
+$\mu$ will never change the state of an empty cell to
+filled).
+First, let $c_{step}:\mathbb{N}_0^{n \times n} \rightarrow
+\mathbb{N}_0^{n \times n}$ be a single clustering step,
+that maps every empty element of $A$ to its biggest
+neighbor and leaves filled elements untouched:
+\begin{align*}
+  c_{step}(A) := i,j=1,\dots,n: \begin{cases}
+    \mu(A, i, j) &\text{if } \sigma(A(i, j)) = empty \\
+    0 &\text{otherwise}.
+  \end{cases}
+\end{align*}
+The clustering operation $c$ of \perc{} can now be defined
+as a recursive function, that executes $c_{step}$, as long
+as it continues to change empty elements to their biggest
+neighbor:
+\begin{align*}
+  c(A) := \begin{cases}
+    A &\text{if } c_{step}(A) = A \\
+    c(c_{step}(A)) &\text{otherwise}.
+  \end{cases}
+\end{align*}
+
+Imagine the case where for every element
+$\sigma(A(i,j)) = filled$ follows, that
+$\mu(A, i, j) = A(i, j)$.
+This would make $c(A)$ call $c_{step}$ just a single time,
+resulting in the best case running time of $c$, with
+$\Omega(c) = n^2$, which---for bigger $n$---is still quite
+slow, even though it is the best case.
+
+To tackle this problem, \perc{} was parallelized.
 % thoroughly describe percolate_par
 
 % briefly outline regression test suite
