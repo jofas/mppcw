@@ -240,20 +240,7 @@ contains
 
     if (lncluster > maxncluster) then
 
-      write(*,*) "percwrite: WARNING ncluster too large, resetting to ", &
-           maxncluster
-
       lncluster = maxncluster
-
-   end if
-
-   if (lncluster > 1) then
-
-      write(*,*) "percwrite: visualising the largest ", lncluster, "clusters"
-
-   else
-
-      write(*,*) "percwrite: only visualising the largest cluster"
 
    end if
 
@@ -299,17 +286,7 @@ contains
 
    end do
 
-   if (lncluster > 1) then
-      write(*,*) "percwrite: cluster sizes are ", foundcluster(1:lncluster)
-   else
-      write(*,*) "percwrite: maximum cluster size is ", foundcluster(1)
-   end if
-
-   write(*,*) 'percwrite: opening file ', percfile
-
    open(unit=iounit, file=percfile)
-
-   write(*,*) 'percwrite: writing data ...'
 
    write(fmtstring, fmt='(''('', ''i1,'',i5,''(1x, i1))'')') pixperline-1
    write(iounit,fmt='(''P2'')')
@@ -360,9 +337,6 @@ contains
       write(iounit,fmt=fmtstring) pgmline(1:npix)
    end if
 
-   write(*,*) 'percwrite: ... done'
-
    close(iounit)
-   write(*,*) 'percwrite: file closed'
  end
 end

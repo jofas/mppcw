@@ -1,0 +1,24 @@
+#!/bin/bash --login
+
+# PBS job options (name, compute nodes, job time)
+#PBS -N __test_out
+#PBS -l select=2:ncpus=72
+#PBS -l walltime=99:00:00
+#PBS -A d171-s2000901
+#PBS -l place=excl
+#PBS -j oe
+
+# Change to the directory that the job was submitted from
+# (remember this should be on the /work filesystem)
+#cd $PBS_O_WORKDIR
+
+echo processes,l,time
+for p in 1 2 4 8 16 32 64; do
+  for l in 250 500 750 1000; do
+    for s in 1 2 3 4 5 6 7 8 9 10; do
+      mpiexec -n $p -perhost 32 \
+        ./percolate_par $s -l $l \
+      | sed 's/ //g'
+    done
+  done
+done

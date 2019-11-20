@@ -25,13 +25,22 @@ program percolate
   integer :: L, M, N
   integer, dimension(:, :), allocatable :: map, chunk
 
+  real :: start_t, end_t
+
   call init()
+
+  start_t = mpi_wtime()
 
   call scatter(comm, map, chunk)
 
   call cluster()
 
   call gather(comm, map, chunk)
+
+  end_t = mpi_wtime()
+
+  if(comm%rank == 0) &
+    print *, comm%w_size, ",", L, ",", end_t - start_t
 
   call finalize()
 
@@ -58,9 +67,6 @@ contains
     N = comm%N
 
     if (comm%rank == 0) then
-      print *, "percolate: params are L = ", L, " rho = ", &
-        cli%density_of_filled_cells, " seed = ", cli%seed
-
       call init_map()
     end if
 
@@ -73,8 +79,6 @@ contains
     ! Write .pgm output file and close the MPI session.
     !
     if (comm%rank == 0) then
-      call percolates()
-
       call pgm_write(cli%pgm_file_path, map, &
         cli%print_n_clusters)
     end if
@@ -103,10 +107,6 @@ contains
         end if
       end do
     end do
-
-    print *, "percolate: rho = ", cli%density_of_filled_cells, &
-      " actual density = ", float(L ** 2 - free_cell_count) &
-      / float(L ** 2)
   end
 
 
@@ -146,8 +146,6 @@ contains
 
       sum_old = sum_
 
-      call print_map_average(i, sum_)
-
       i = i + 1
     end do
   end
@@ -166,53 +164,5 @@ contains
                        , chunk(i - 1, j) &
                        , chunk(i, j) )
     end forall
-  end
-
-
-  subroutine print_map_average(i, sum_)
-    !
-    ! Prints the average over every cell in map at certain
-    ! intervals. The interval is determined by L * factor.
-    ! The factor is provided by the cli.
-    !
-    integer, intent(in) :: i, sum_
-
-    integer :: modulus
-
-    modulus = int(L * cli%print_iter_factor)
-
-    if (modulus /= 0 .and. mod(i, modulus) == 0 &
-      .and. comm%rank == 0) &
-    then
-      print *, "percolate: average cell value of map on step ", &
-        i, " is ", float(sum_) / float(L ** 2)
-    end if
-  end
-
-
-  subroutine percolates()
-    !
-    ! Test if the map percolates (a cluster goes from the
-    ! left most column to the right most column of map).
-    !
-    integer :: i, j
-    logical :: does_percolate
-
-    do i = 1, L
-      if (map(i, 1) > 0) then
-        do j = 1, L
-          if (map(i, 1) == map(j, L)) then
-            does_percolate = .true.
-            exit
-          end if
-        end do
-      end if
-    end do
-
-    if (does_percolate) then
-      print *, "percolate: cluster DOES percolate"
-    else
-      print *, "percolate: cluster does NOT percolate"
-    end if
   end
 end
