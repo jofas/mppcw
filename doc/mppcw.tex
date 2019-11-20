@@ -87,8 +87,9 @@ kinds of cells: empty and filled. Empty cells build
 clusters with their neighboring empty cells.
 \perc{} computes all clusters in the matrix and searches
 for a cluster that percolates.
-A cluster percolates, if it begins in the left most column
-of the matrix and ends in the right most column.
+The matrix percolates, if there exits a cluster that begins
+in the left most column of the matrix and ends in the right
+most column.
 
 The computing of the clusters---the clustering---is done
 iteratively and is the main cause of computation in
@@ -213,11 +214,28 @@ Imagine the case where for every element
 $\sigma(A(i,j)) = filled$ follows, that
 $\mu(A, i, j) = A(i, j)$.
 This would make $c(A)$ call $c_{step}$ just a single time,
-resulting in the best case running time of $c$, with
+resulting in the best case running time of $c$:
 $\Omega(c) = n^2$, which---for bigger $n$---is still quite
 slow, even though it is the best case.
 
-To tackle this problem, \perc{} was parallelized.
+After the clustering, it is easy to check whether the
+matrix percolates.
+The matrix percolates, if $\exists i, \exists j: A(i,1) =
+A(j,n)$.
+In other words, if any element in the first column has the
+same value as any element in the last column of $A$, the
+matrix percolates.
+
+To tackle the poor performance, \perc{} was parallelized
+using the MPI Standard, version 3.1 \citep[see][]{mpi}.
+
+Let $p$ be the amount of MPI processes the parallel version
+of \perc{} is executed with.
+The processes are arranged in a virtual, two dimensional
+cartesian topology \citep[see][Chapter 7]{mpi}.
+
+% graph with example of splitting map
+
 % thoroughly describe percolate_par
 
 % briefly outline regression test suite
