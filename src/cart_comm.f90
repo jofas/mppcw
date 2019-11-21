@@ -53,13 +53,13 @@ contains
     integer, intent(in) :: L
     type(MPI_Comm), intent(in) :: comm
 
-    call init_comm(self, comm)
+    call init_comm(self, comm, L)
     call init_scatter_info(self, L)
     call init_neighbors(self)
   end
 
 
-  subroutine init_comm(self, comm)
+  subroutine init_comm(self, comm, L)
     !
     ! Builds the 2d cartesian communicator from comm and
     ! saves some more information about the environment
@@ -71,18 +71,65 @@ contains
     !
     type(CartComm), intent(inout) :: self
     type(MPI_Comm), intent(in) :: comm
+    integer, intent(in) :: L
 
-    ! rank for comm and the created cartesian comm are the
-    ! same, because shuffle is set to false in
-    ! mpi_cart_create.
     call mpi_comm_rank(comm, self%rank)
     call mpi_comm_size(comm, self%w_size)
 
     self%dims(:) = 0
     call mpi_dims_create(self%w_size, 2, self%dims)
 
+    call truncate_dims_if_necessary(self, L)
+
     call mpi_cart_create(comm, 2, self%dims, &
       [.true., .false.], .false., self%comm)
+
+    call update_if_truncated(self)
+  end
+
+
+  subroutine truncate_dims_if_necessary(self, L)
+    !
+    ! If, for some reason, a dimension of the cartesian
+    ! topology contains more processes than the matrix
+    ! elements on this axis, the amount of processes is
+    ! truncated.
+    !
+    ! This increases performance, because there are no
+    ! processes with empty chunks. It also guarantees
+    ! correctness for the halo swapping, becuase otherwise,
+    ! on the first axis with a periodic boundary, a process
+    ! with an empty chunk would receive the halo and not
+    ! propagate it to a process with a chunk that is not
+    ! empty.
+    !
+    type(CartComm), intent(inout) :: self
+    integer, intent(in) :: L
+
+    if (self%dims(1) > L) then
+      self%dims(1) = L
+    end if
+
+    if (self%dims(2) > L) then
+      self%dims(2) = L
+    end if
+  end
+
+
+  subroutine update_if_truncated(self)
+    !
+    ! Kills truncated processes and resets some variables
+    ! to the truncated cartesian topology.
+    !
+    type(CartComm), intent(inout) :: self
+
+    if (self%comm == mpi_comm_null) then
+      call mpi_finalize()
+      stop
+    end if
+
+    call mpi_comm_rank(self%comm, self%rank)
+    call mpi_comm_size(self%comm, self%w_size)
   end
 
 
