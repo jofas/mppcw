@@ -136,6 +136,8 @@ given.
 At last, this chapter presents the benchmark, that is
 discussed in the following chapters.
 
+% math def {{{
+
 \subsection{Mathematical definition of the clustering
   algorithm used by \perc{}}
 
@@ -241,30 +243,118 @@ In other words, if any element in the first column has the
 same value as any element in the last column of $A$, the
 matrix percolates.
 
+% }}}
+
+% parallel {{{
 
 \subsection{Parallelized version of \perc{} using MPI}
 
-To tackle the poor performance, \perc{} was parallelized
-using the MPI Standard, version 3.1 \citep[see][]{mpi}.
+To tackle the poor performance of the clustering algorithm,
+\perc{} was parallelized using the MPI Standard,
+version 3.1 \citep[see][]{mpi}.
 
 Let $p$ be the amount of MPI processes the parallel version
 of \perc{} is executed with.
+Every process has a rank, which is drawn from a sequence
+$0,1,\dots,p-1$.
+The process with rank 0 is called the root process.
+
 The processes are arranged in a virtual, two dimensional
-cartesian topology \citep[see][Chapter 7]{mpi}.
+Cartesian topology.
+The $p$ processes are as evenly distributed as possible
+over both axes of $A$ with the \texttt{MPI\_Dims\_create}
+routine.
+\texttt{MPI\_Dims\_create} returns an array $dims$ with two
+elements, one for each axis of $A$.
+$dims_{row}$ contains the amount of processes the rows of
+$A$ are split by, $dims_{column}$ the amount of processes
+the columns of $A$ are split by.
+After distributing the processes over the rows and columns
+of $A$, \texttt{MPI\_Cart\_create} is used to generate
+the topology from \texttt{MPI\_Comm\_World}
+\citep[see][Chapter 7]{mpi}.
+
+The previous chapter states, that $A(i, j) = 0$, if $i$ or
+$j$ equals $0$ or $n + 1$ ($i$ or $j$ out of bounds).
+The actual clustering of \perc{} behaves differently.
+$A(i, j) = 0$, only if $j$ is out of bounds.
+If $i$ is out of bounds, then a periodic boundary condition
+is used: $A(0, j) = A(n, j), A(n + 1, j) = A(1, j)$.
+This condition is easily implemented with
+\texttt{MPI\_Cart\_create}, which actually has an argument
+\texttt{periods}. \texttt{periods} is an array with two
+elements (for each axis) containing boolean values, whether
+an axis is periodic or not \citep[see][Chapter 7]{mpi}.
+
+The root process initializes $A$.
+Now, $A$ needs to be distributed among the processes.
+Every process has a coordinate based on its rank.
+The coordinates of a process come from the
+\texttt{MPI\_Cart\_coords} routine and is a representation
+of the place of the process in the two dimensional
+Cartesian topology.
+Let $coords_{p_i}$ be the coordinates of the process with
+rank $p_i$ and let $coords_{p_i, row}$ be its coordinate
+among the first axis and $coords_{p_i, column}$ be its
+coordinate among the second axis.
+$coords$ behaves like the ranks, starting from $0$ to
+$dims_{row} - 1$ and $0$ to $dims_{column - 1}$,
+respectively.
+The chunk of $A$, which is assigned to the process with
+rank $p_i$ can now be defined by a tuple
+$\alpha_{p_i} := (i, j, l, m)$.
+$i$ and $j$ are pointers to the first element of the chunk,
+while $l$ is the amount of rows and $m$ the amount of
+columns the chunk possesses.
+The parts of $\alpha_{p_i}$ are computed as follows:
+first, lets define split values among both axes that are
+elements of the natural numbers
+$s_{row} := \lfloor \frac{n}{dims_{row}} \rfloor$ and
+$s_{column} := \lfloor \frac{n}{dims_{column}} \rfloor$.
+With use of these split values and $coords$ and $dims$, we
+can define $i, j, l$ and $m$:
+\begin{align*}
+  &i &:= &coords_{p_i,row} \cdot s_{row} + 1 \\
+  &j &:= &coords_{p_i, column} \cdot s_{column} + 1 \\
+  &l &:= &\begin{cases}
+    s_{row} + n \mod dims_{row} &\text{if } coords_{p_i, row} = dims_{row} - 1 \\
+    s_{row} &\text{otherwise}
+  \end{cases} \\
+  &m &:= &\begin{cases}
+    s_{column} + n \mod dims_{column} &\text{if } coords_{p_i, column} = dims_{column} - 1 \\
+    s_{column} &\text{otherwise}.
+  \end{cases}
+\end{align*}
+
+% neighbors
+
+% scatter gather
+
+% halo swap
+
+% example
 
 % graph with example of splitting map
 
-% thoroughly describe percolate_par
+% }}}
+
+% test suite {{{
 
 \subsection{Regression test suite for testing the
   correctness of the parallel version of \perc{}}
 
 % briefly outline regression test suite
 
+% }}}
+
+% benchmark {{{
+
 \subsection{The benchmark discussed in the following
   chapters}
 
 % describe benchmark
+
+% }}}
 
 % }}}
 
