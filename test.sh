@@ -6,6 +6,11 @@
 #
 # $3: optional different mpi executor than mpirun
 #
+# $4: optional root directory
+
+if [ ! "$4" == "" ]; then
+  cd $4
+fi
 
 DIR=tests
 
@@ -41,7 +46,7 @@ for i in $1; do
   for l in $l_seq; do
     for seed in $seed_seq; do
       echo Testing with i: $i, l: $l, seed: $seed
-      $exc -n $i $2 percolate_par $seed -l $l --pgm_file_path "$DIR/par.$l.$seed.pgm"
+      $exc $2 -n $i ./percolate_par $seed -l $l --pgm_file_path "$DIR/par.$l.$seed.pgm"
       if [ -f "$DIR/par.$l.$seed.pgm" ]; then
         if [ "$(diff $DIR/par.$l.$seed.pgm $DIR/ser.$l.$seed.pgm)" == "" ]; then
           echo SUCCESS
