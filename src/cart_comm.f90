@@ -81,9 +81,6 @@ contains
     self%dims(:) = 0
     call mpi_dims_create(self%w_size, 2, self%dims)
 
-    ! first axis is horizontal and second vertical (like
-    ! coordinate system of a 2d euclidean space rather than
-    ! a matrix
     call mpi_cart_create(comm, 2, self%dims, &
       [.true., .false.], .false., self%comm)
   end
