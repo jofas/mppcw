@@ -175,32 +175,26 @@ Note on the decomposition used in the parallel version
 ------------------------------------------------------
 
 You can execute ```percolate_par``` with any amount of 
-MPI processes. However, ```percolate_par``` does not save
-you from using a useless amount of processes.
+MPI processes. However, ```percolate_par``` does not 
+guarantee that the program will run with the defined amount
+of processes. 
 
 This is best explained by an example. Imagine you want to
 percolate a 2 x 2 matrix on three MPI processes with
-executing ```mpiexec -n 3 percolate -l 2```. This will 
-probably take more time than running the whole as serial,
-because of how ```percolate_par``` decomposes the matrix 
-among the spawned MPI processes.
-
+executing ```mpiexec -n 3 percolate -l 2```. 
 In this case, ```percolate_par``` would decompose its 
 dimensions to 3 x 1, which means 3 processes are stacked
 horizontically (in the 2d cartesian topology). Now,
-```percolate_par``` would decompose the matrix by giving
+```percolate_par``` would distribute the matrix by giving
 the first ```n - 1```---```n``` in this case is 
 3---```floor(l/n)``` many elements in the x-direction and
 ```floor(l/1)``` many elements in the y-direction.
 In this case, the first and second process would both have
-a chunk of the matrix of the size 2 x 0.
-On the other hand, the ```n```th element gets 
-```floor(l/n) + l mod n``` elements in the x-direction, in 
-this case 2 (all) and also ```floor(l/1) + l mod 1```
-elements among the y axis. Therefore, the third process 
-contains the whole matrix. 
-This means, the first two processes just having empty 
-chunks of the matrix and only consiting of halos, which are 
-swapped. Therefore, we have unnecessary traffic between 
-processes which actually do nothing, making it probably
-slower than the serial version.
+a chunk of the matrix of the size 0 x 2.
+
+```percolate_par``` prevents empty chunks by killing MPI
+processes, if a dimension of the cartesian topology has 
+more processes than the matrix elements on the 
+corresponding axis. So, in this example, 
+```percolate_par``` would actually run with a 2 x 1 
+decomposition, so every process has at least one element.
