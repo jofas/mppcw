@@ -262,17 +262,17 @@ The process with rank 0 is called the root process.
 The processes are arranged in a virtual, two dimensional
 Cartesian topology.
 The $p$ processes are as evenly distributed as possible
-over both axes of $A$ with the \texttt{MPI\_Dims\_create}
-routine.
+over both axes of the topology with the
+\texttt{MPI\_Dims\_create} routine.
 \texttt{MPI\_Dims\_create} returns an array $dims$ with two
-elements, one for each axis of $A$.
+elements, one for each axis.
 $dims_{row}$ contains the amount of processes the rows of
 $A$ are split by, $dims_{column}$ the amount of processes
 the columns of $A$ are split by.
-After distributing the processes over the rows and columns
-of $A$, \texttt{MPI\_Cart\_create} is used to generate
-the topology from \texttt{MPI\_Comm\_World}
-\citep[see][Chapter 7]{mpi}.
+After generating the dimensions of the topology,
+\texttt{MPI\_Cart\_create} is used to generate the actual
+communicator that manages the virtual topology with
+\texttt{MPI\_Comm\_World} \citep[see][Chapter 7]{mpi}.
 
 The previous chapter states, that $A(i, j) = 0$, if $i$ or
 $j$ equals $0$ or $n + 1$ ($i$ or $j$ out of bounds).
@@ -284,57 +284,107 @@ This condition is easily implemented with
 \texttt{MPI\_Cart\_create}, which actually has an argument
 \texttt{periods}. \texttt{periods} is an array with two
 elements (for each axis) containing boolean values, whether
-an axis is periodic or not \citep[see][Chapter 7]{mpi}.
+an axis of the topology is periodic or not
+\citep[see][Chapter 7]{mpi}.
 
-The root process initializes $A$.
-Now, $A$ needs to be distributed among the processes.
-Every process has a coordinate based on its rank.
+The root process initializes $A$, which needs to be
+distributed to the MPI processes.
+Every process has coordinates in the topology, based on
+its rank.
 The coordinates of a process come from the
-\texttt{MPI\_Cart\_coords} routine and is a representation
+\texttt{MPI\_Cart\_coords} routine and are a representation
 of the place of the process in the two dimensional
-Cartesian topology.
+Cartesian topology \citep[see][Chapter 7]{mpi}.
+
 Let $coords_{p_i}$ be the coordinates of the process with
-rank $p_i$ and let $coords_{p_i, row}$ be its coordinate
-among the first axis and $coords_{p_i, column}$ be its
-coordinate among the second axis.
-$coords$ behaves like the ranks, starting from $0$ to
-$dims_{row} - 1$ and $0$ to $dims_{column - 1}$,
-respectively.
+rank $p_i$ and let $coords_{p_i, row}$ be the coordinates'
+value for the first axis and $coords_{p_i, column}$ be its
+value for the second axis of the topology.
+$coords$ behaves like the ranks, ranging from $0$ to
+$dims_{row} - 1$ and $0$ to $dims_{column} - 1$,
+respectively \citep[see][Chapter 7]{mpi}.
+
 The chunk of $A$, which is assigned to the process with
 rank $p_i$ can now be defined by a tuple
 $\alpha_{p_i} := (i, j, l, m)$.
-$i$ and $j$ are pointers to the first element of the chunk,
-while $l$ is the amount of rows and $m$ the amount of
-columns the chunk possesses.
-The parts of $\alpha_{p_i}$ are computed as follows:
-first, lets define split values among both axes that are
-elements of the natural numbers
-$s_{row} := \lfloor \frac{n}{dims_{row}} \rfloor$ and
-$s_{column} := \lfloor \frac{n}{dims_{column}} \rfloor$.
+$i$ and $j$ are the indices of $A$, which point to the
+first element of the chunk, while $l$ is the amount of rows
+and $m$ the amount of columns the chunk possesses.
+Let $s_{row} := \lfloor \frac{n}{dims_{row}} \rfloor$ and
+$s_{column} := \lfloor \frac{n}{dims_{column}} \rfloor$ be
+the general size of the splits of $A$ for both axes.
 With use of these split values and $coords$ and $dims$, we
 can define $i, j, l$ and $m$:
 \begin{align*}
-  &i &:= &coords_{p_i,row} \cdot s_{row} + 1 \\
-  &j &:= &coords_{p_i, column} \cdot s_{column} + 1 \\
-  &l &:= &\begin{cases}
+  &i := coords_{p_i,row} \cdot s_{row} + 1 \\
+  &j := coords_{p_i, column} \cdot s_{column} + 1 \\
+  &l := \begin{cases}
     s_{row} + n \mod dims_{row} &\text{if } coords_{p_i, row} = dims_{row} - 1 \\
     s_{row} &\text{otherwise}
   \end{cases} \\
-  &m &:= &\begin{cases}
+  &m := \begin{cases}
     s_{column} + n \mod dims_{column} &\text{if } coords_{p_i, column} = dims_{column} - 1 \\
     s_{column} &\text{otherwise}.
   \end{cases}
 \end{align*}
+For both axes of $A$, every process has a chunk of the same
+size, except the processes, which coordinates' value for
+the equivalent axis in the topology is the highest possible
+value for it ($dims_{row} - 1$ or $dims_{column} - 1$).
+The last process has a chunk of the same size as the other
+processes, plus the rest of the elements of $A$ among that
+axis.
 
-% neighbors
+% exception if dims_xxx > L
+
+$l$ and $m$ are needed in order to generate a strided
+vector type with \texttt{MPI\_Type\_vector}, which is used
+for sending the chunk from the root process to $p_i$.
+In this case, the type for sending $p_i$'s chunk would be
+generated with setting \texttt{count} to $m$,
+\texttt{blocklength} to $l$ and \texttt{stride} to $n$
+\citep[see][Chapter 4]{mpi}.
+
+% here chunks
+
+% scatter/gathering at the root process
 
 % scatter gather
+
+% neighbors
 
 % halo swap
 
 % example
 
 % graph with example of splitting map
+
+In order to insure correctness of the result, the first
+axis of the topology can not contain more elements than $n$
+($dims_{row} \leq n$), because this axis uses a periodic
+boundary condition.
+If $dim_{row} > n$, than $s_{row} = 0$. That means, only
+the processes with $coords_{row} = dims_{row} - 1$ would
+contain elements and all other processes would contain
+empty chunks, because $l = s_{row} = 0$.
+If not for the periodic boundary condition, this would only
+endanger the performance of \perc{}, not its correctness.
+But during halo swapping, a process with $coords_{row} = 0$
+would receive its lower halo from a process with
+$coords_{row} = dims_{row} - 1$, which means they are
+lost to the processes not containing empty chunks
+(which should actually have themselves as lower and upper
+neighbor), making the periodic boundary condition
+non-periodic.
+
+Therefore, the Cartesian communicator truncates
+$dim_{row} = n$, if $dim_{row} > n$, which means there are
+$n$ processes among the first axis of the topology, each
+containing a chunk which is the subset of a single row of
+$A$.
+Because empty processes only produce an overhead of
+communication and therefore endanger performance, the same
+truncation happens for $dim_{column}$.
 
 % }}}
 
