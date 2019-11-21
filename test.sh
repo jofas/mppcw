@@ -53,7 +53,7 @@ for i in $1; do
           rm $DIR/par.$l.$seed.pgm
         else
           echo FAILURE
-          #exit
+          exit
         fi
       else
         echo NO FILE GENERATED
