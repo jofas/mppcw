@@ -86,7 +86,7 @@ programming language. It generates a random matrix with two
 kinds of cells: empty and filled. Empty cells build
 clusters with their neighboring empty cells.
 \perc{} computes all clusters in the matrix and searches
-for a cluster that percolates.
+for a cluster that makes the matrix percolate.
 The matrix percolates, if there exits a cluster that begins
 in the left most column of the matrix and ends in the right
 most column.
@@ -110,8 +110,9 @@ This makes it a 2d domain decomposition of the matrix.
 The parallel version is based on MPI and the worker
 instances are MPI processes \citep[see][]{mpi}.
 
-First, this paper describes the parallel version of
-\perc{}.
+First, this paper describes the clustering algorithm used
+by \perc{} and the way \perc{} is parallelized using the
+MPI library.
 The parallel version's correctness is tested by a
 regression test suite, which is briefly outlined.
 Afterwards a benchmark is presented, which analyzes the
@@ -123,6 +124,20 @@ is drawn.
 % }}}
 
 \section{Method} % {{{
+
+This chapter presents a mathematical definition of the
+clustering algorithm used by \perc{}.
+The poor running time of the serial version of the
+clustering algorithm is shown.
+Afterwards the parallelized version of the clustering is
+described and a brief outline of the regression test suite
+for testing the correctness of the parallel version is
+given.
+At last, this chapter presents the benchmark, that is
+discussed in the following chapters.
+
+\subsection{Mathematical definition of the clustering
+  algorithm used by \perc{}}
 
 Let $A \in \mathbb{N}_0^{n \times n}$ be the matrix that
 is clustered by \perc{}.
@@ -226,6 +241,9 @@ In other words, if any element in the first column has the
 same value as any element in the last column of $A$, the
 matrix percolates.
 
+
+\subsection{Parallelized version of \perc{} using MPI}
+
 To tackle the poor performance, \perc{} was parallelized
 using the MPI Standard, version 3.1 \citep[see][]{mpi}.
 
@@ -238,7 +256,13 @@ cartesian topology \citep[see][Chapter 7]{mpi}.
 
 % thoroughly describe percolate_par
 
+\subsection{Regression test suite for testing the
+  correctness of the parallel version of \perc{}}
+
 % briefly outline regression test suite
+
+\subsection{The benchmark discussed in the following
+  chapters}
 
 % describe benchmark
 
