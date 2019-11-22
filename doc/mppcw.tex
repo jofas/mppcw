@@ -358,6 +358,116 @@ generated with setting \texttt{count} to $m$,
 % example
 
 % graph with example of splitting map
+\begin{figure}
+\begin{subfigure}[t]{\textwidth}
+\begin{center}
+\begin{tikzpicture} % {{{
+  \matrix[anchor=east, label=$A$]
+  at (0, 0) (A)
+  {
+    \node (ps)   {0}; & \node (pvs) {1}; & \node        {0};
+                      & \node (pp1) {2}; & \node        {0}; \\
+    \node (ph1s) {0}; & \node       {3}; & \node        {0};
+                      & \node       {0}; & \node (ph1e) {4}; \\
+    \node (ph2s) {5}; & \node       {6}; & \node        {7};
+                      & \node       {0}; & \node (ph2e) {8}; \\
+    \node        {0}; & \node       {0}; & \node        {9};
+                      & \node      {10}; & \node        {0}; \\
+    \node (pp4)  {0}; & \node (pve) {0}; & \node       {11};
+                      & \node (pp5){12}; & \node (pe)  {13}; \\
+  };
+
+  \draw (ps.north west) -| (pe.south east) -| cycle;
+  \draw (ph1s.north west) -- (ph1e.north east);
+  \draw (ph2s.north west) -- (ph2e.north east);
+  \draw (pvs.north east) -- (pve.south east);
+
+  \matrix[above left=1.42cm of A.north west, label=$p_0$, draw] (p0)
+  {
+    \node[anchor=west]{$coords_{p_0} = (0, 0)$};\\
+    \node[anchor=west]{$\alpha_{p_0} = (1, 1, 1, 2)$};\\
+  };
+
+  \matrix[above right=1.42cm of A.north east, label=$p_1$, draw] (p1)
+  {
+    \node{$coords_{p_1} = (0, 1)$};\\
+    \node{$\alpha_{p_1} = (1, 3, 1, 3)$};\\
+  };
+  \matrix[left=1cm of A.west, label=$p_2$, draw] (p2)
+  {
+    \node{$coords_{p_2} = (1, 0)$};\\
+    \node{$\alpha_{p_2} = (2, 1, 1, 2)$};\\
+  };
+  \matrix[right=1cm of A.east, label=$p_3$, draw] (p3)
+  {
+    \node{$coords_{p_3} = (1, 1)$};\\
+    \node{$\alpha_{p_3} = (2, 3, 1, 3)$};\\
+  };
+  \matrix[below left=1.42cm of A.south west, label=$p_4$, draw] (p4)
+  {
+    \node{$coords_{p_4} = (2, 0)$};\\
+    \node{$\alpha_{p_4} = (3, 1, 3, 2)$};\\
+  };
+  \matrix[below right=1.42cm of A.south east, label=$p_5$, draw] (p5)
+  {
+    \node{$coords_{p_5} = (2, 1)$};\\
+    \node{$\alpha_{p_5} = (3, 3, 3, 3)$};\\
+  };
+
+  \draw (p0) -| (ps.north east);
+  \draw (p1) -| (pp1);
+  \draw (p2) -| ($(p2.east) !.5! (ph1s.west)$) |- (ph1s);
+  \draw (p3) -| ($(p3.west) !.5! (ph1e.east)$) |- (ph1e);
+  \draw (p4) -| (pp4.south east);
+  \draw (p5) -| (pp5);
+\end{tikzpicture} % }}}
+\caption{Subfig}
+\end{center}
+\vspace{2cm}
+\end{subfigure}
+\begin{subfigure}[t]{\textwidth}
+\begin{center}
+\begin{tikzpicture} % {{{
+  \matrix[column sep=1cm, row sep=1cm]{
+    &\node (p0) {$p_0$}; &\node (p1) {$p_1$}; &\\
+    \node (nullw)  {\texttt{MPI\_PROC\_NULL}};
+    &\node (p2) {$p_2$}; &\node (p3) {$p_3$};
+      &\node (nulle) {\texttt{MPI\_PROC\_NULL}}; \\
+    &\node (p4) {$p_4$}; &\node (p5) {$p_5$}; \\
+  };
+
+  \draw[->] (p0) -| (nullw);
+  \draw[->] (p2) -- (nullw);
+  \draw[->] (p4) -| (nullw);
+
+  \draw[<->] (p0) -- (p2);
+  \draw[<->] (p2) -- (p4);
+
+  \draw[<->] (p0) -- (p1);
+  \draw[<->] (p4) -- (p5);
+
+  \draw[->] (p1) -| (nulle);
+  \draw[->] (p3) -- (nulle);
+  \draw[->] (p5) -| (nulle);
+
+  \draw[<->] (p1) -- (p3);
+  \draw[<->] (p3) -- (p5);
+
+  \draw[<->] (p2) -- (p3);
+
+  \draw[<->] (p0) |- ($(p0.north west) + (-4cm,.5cm)$) --
+             ($(p4.south west) - (4cm,.5cm)$) -| (p4);
+
+  \draw[<->] (p1) |- ($(p1.north east) + (4cm,.5cm)$) --
+             ($(p5.south east) + (4cm,-.5cm)$) -| (p5);
+
+\end{tikzpicture} % }}}
+\caption{Subfig}
+\end{center}
+\end{subfigure}
+\caption{Fig}
+\label{fig:example}
+\end{figure}
 
 In order to insure correctness of the result, the first
 axis of the topology can not contain more elements than $n$
