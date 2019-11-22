@@ -440,29 +440,29 @@ generated with setting \texttt{count} to $m$,
   \draw[->] (p2) -- (nullw);
   \draw[->] (p4) -| (nullw);
 
-  \draw[<->] (p0) -- (p2);
-  \draw[<->] (p2) -- (p4);
+  \draw[-] (p0) -- (p2);
+  \draw[-] (p2) -- (p4);
 
-  \draw[<->] (p0) -- (p1);
-  \draw[<->] (p4) -- (p5);
+  \draw[-] (p0) -- (p1);
+  \draw[-] (p4) -- (p5);
 
   \draw[->] (p1) -| (nulle);
   \draw[->] (p3) -- (nulle);
   \draw[->] (p5) -| (nulle);
 
-  \draw[<->] (p1) -- (p3);
-  \draw[<->] (p3) -- (p5);
+  \draw[-] (p1) -- (p3);
+  \draw[-] (p3) -- (p5);
 
-  \draw[<->] (p2) -- (p3);
+  \draw[-] (p2) -- (p3);
 
-  \draw[<->] (p0) |- ($(p0.north west) + (-4cm,.5cm)$) --
+  \draw[-] (p0) |- ($(p0.north west) + (-4cm,.5cm)$) --
              ($(p4.south west) - (4cm,.5cm)$) -| (p4);
 
-  \draw[<->] (p1) |- ($(p1.north east) + (4cm,.5cm)$) --
+  \draw[-] (p1) |- ($(p1.north east) + (4cm,.5cm)$) --
              ($(p5.south east) + (4cm,-.5cm)$) -| (p5);
 
 \end{tikzpicture} % }}}
-\caption{Subfig}
+\caption{Subfig, TODO: describe directed graph property}
 \end{center}
 \end{subfigure}
 \caption{Fig}
