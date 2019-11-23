@@ -252,6 +252,8 @@ matrix percolates.
 To tackle the poor performance of the clustering algorithm,
 \perc{} was parallelized using the MPI Standard,
 version 3.1 \citep[see][]{mpi}.
+Algorithm~\ref{alg:perc_par} shows the parallel version of
+\perc{}.
 
 Let $p$ be the amount of MPI processes the parallel version
 of \perc{} is executed with.
@@ -266,13 +268,13 @@ over both axes of the topology with the
 \texttt{MPI\_Dims\_create} routine.
 \texttt{MPI\_Dims\_create} returns an array $dims$ with two
 elements, one for each axis.
-$dims_{row}$ contains the amount of processes the rows of
-$A$ are split by, $dims_{column}$ the amount of processes
-the columns of $A$ are split by.
+$dims_{row} = dims(1)$ contains the amount of processes the
+rows of $A$ are split by, $dims_{column} = dims(2)$ the
+amount of processes the columns of $A$ are split by.
 After generating the dimensions of the topology,
 \texttt{MPI\_Cart\_create} is used to generate the actual
-communicator that manages the virtual topology with
-\texttt{MPI\_Comm\_World} \citep[see][Chapter 7]{mpi}.
+communicator that manages the virtual topology from
+\texttt{MPI\_COMM\_WORLD} \citep[see][Chapter 7]{mpi}.
 
 The previous chapter states, that $A(i, j) = 0$, if $i$ or
 $j$ equals $0$ or $n + 1$ ($i$ or $j$ out of bounds).
@@ -288,7 +290,8 @@ an axis of the topology is periodic or not
 \citep[see][Chapter 7]{mpi}.
 
 The root process initializes $A$, which needs to be
-distributed to the MPI processes.
+distributed to the MPI processes (see
+Algorithm~\ref{alg:perc_par}, lines 2ff).
 Every process has coordinates in the topology, based on
 its rank.
 The coordinates of a process come from the
@@ -333,9 +336,7 @@ the equivalent axis in the topology is the highest possible
 value for it ($dims_{row} - 1$ or $dims_{column} - 1$).
 The last process has a chunk of the same size as the other
 processes, plus the rest of the elements of $A$ among that
-axis.
-
-% exception if dims_xxx > L
+axis (see Figure~\ref{fig:example_distribution}).
 
 $l$ and $m$ are needed in order to generate a strided
 vector type with \texttt{MPI\_Type\_vector}, which is used
@@ -345,20 +346,115 @@ generated with setting \texttt{count} to $m$,
 \texttt{blocklength} to $l$ and \texttt{stride} to $n$
 \citep[see][Chapter 4]{mpi}.
 
-% here chunks
+The chunks are scattered from the root process to every
+non-root process with \texttt{MPI\_S\-send}.
+The root process simply copies its chunk from $A$.
+Gathering, after the clustering is finished works the same
+way as the scattering, just reverse (the non-root processes
+sending their chunks back to the root process with
+\texttt{MPI\_Ssend} and the root process copying its chunk
+back to $A$) \citep[see Algorithm~\ref{alg:perc_par},
+lines 5,7 and][Chapter 3]{mpi}.
 
-% scatter/gathering at the root process
+\begin{algorithm} % {{{
+  \caption{: parallel version of \perc{}}
+  \label{alg:perc_par}
 
-% scatter gather
+  \begin{algorithmic}[1]
+    \STATE{initialize MPI and the Cartesian topology}
+    \IF{rank = 0}
+      \STATE{randomly initialize $A$}
+    \ENDIF
+    \STATE{scatter $A$ to every process's chunk}
+    \STATE{execute $c_{par}$ (Algorithm~\ref{alg:cluster_par})}
+    \STATE{gather the chunks back to $A$}
+    \IF{rank = 0}
+      \STATE{find out if $A$ percolates}
+      \STATE{save $A$ as a Portable Gray Map file}
+    \ENDIF
+    \STATE{finalize MPI}
 
-% neighbors
+  \end{algorithmic}
+\end{algorithm} % }}}
 
-% halo swap
+Every process has four neighbors: a left, right, upper and
+lower neighbor (see Figure~\ref{fig:example_neighbors}).
+The neighbors are needed for swapping halos, so the
+clustering is actually done over the whole matrix, and not
+just over the chunks.
+The neighbors are determined with
+\texttt{MPI\_Cart\_shift}, shifting both axes of the
+topology up one element \citep[see][Chapter 7]{mpi}.
 
-% example
+The second axis of the topology is not periodic, so
+processes for which $coords_{p_i, column} = 0$ have
+\texttt{MPI\_PROC\_NULL} as their left neighbor.
+The same goes for processes for which
+$coords_{p_i, column} = dims_{column} - 1$, only their
+right neighbor is set to \texttt{MPI\_PROC\_NULL}
+\citep[see Figure~\ref{fig:example_neighbors} and]
+[Chapter 3]{mpi}.
 
-% graph with example of splitting map
-\begin{figure}
+$p_i$'s chunk is the actual chunk it is provided from $A$
+by the root process, plus a halo (chunk$: L+2 \times M+2$,
+its indices ranging from $0,\dots,L+1$ and $0,\dots,M+1$).
+The halo is used as a container for the data received from
+$p_i$'s neighbors during the halo swapping, or as a buffer
+of empty elements for $\mu$, if the process's left or right
+neighbor is \texttt{MPI\_PROC\_NULL}
+\citep[see][Chapter 3]{mpi}.
+
+The halo swapping happens before each $cluster_{step}$
+(see Algorithm~\ref{alg:cluster_par}, line 3).
+Halo swapping means, the outer most row or column (in
+any direction of left, right upper or lower) is send
+to the corresponding neighbor, which sends its outer most
+row or column in return (the opposite of the direction it
+receives from).
+In the example shown in Figure~\ref{fig:example}, $p_4$
+would send its first row $(5,6)$ to $p_2$, its upper
+neighbor and would receive $(0,3)$ from $p_2$ (its lower
+and only row) in return, which is then stored in
+chunk$_{p_4}(0, 1:2)$.
+
+The halo swapping is realized with \texttt{MPI\_Sendrecv}.
+Because the first axis of the topology is periodic,
+\texttt{MPI\_Sendrecv} can not be called with the same
+neighbor (e.g. sending to upper and receiving from upper).
+Instead, \texttt{MPI\_Sendrecv} must be called with
+upper and lower for sending and receiving (sending to
+upper and receiving from lower and vice versa).
+Otherwise \perc{} would deadlock
+\citep[see][Chapter 3]{mpi}.
+
+For stopping the clustering, every process computes the
+sum over each element in its chunk (without the halos).
+The sum is then reduced and broadcast to every process
+with \texttt{MPI\_Allreduce} \citep[see][Chapter 5]{mpi}.
+If the reduced sum is equal to the sum generated by the
+previous step, the clustering is finished (see
+Algorithm~\ref{alg:cluster_par}).
+
+\begin{algorithm} % {{{
+  \caption{: $c_{par}$}
+  \label{alg:cluster_par}
+
+  \begin{algorithmic}[1]
+    \STATE{$sum_{A'} := 0$}
+    \WHILE{$true$}
+      \STATE{swap halos with neighbors}
+      \STATE{chunk $:= c_{step}($chunk$)$}
+      \STATE{$sum := \sum_{i=1}^{l}\sum_{j=1}^{m}$chunk$(i,j)$}
+      \STATE{reduce $sum$ over all processes into $sum_{A}$}
+      \IF{$sum_{A} = sum_{A'}$}
+        \STATE{exit loop}
+      \ENDIF
+      \STATE{$sum_{A'} := sum_{A}$}
+    \ENDWHILE
+  \end{algorithmic}
+\end{algorithm} % }}}
+
+\begin{figure} % {{{
 \begin{subfigure}[t]{\textwidth}
 \begin{center}
 \begin{tikzpicture} % {{{
@@ -421,9 +517,11 @@ generated with setting \texttt{count} to $m$,
   \draw (p4) -| (pp4.south east);
   \draw (p5) -| (pp5);
 \end{tikzpicture} % }}}
-\caption{Subfig}
+\caption{Graph displaying how a randomly initialized
+  $5 \times 5$ matrix is distributed among 6 processes.}
+\label{fig:example_distribution}
 \end{center}
-\vspace{2cm}
+\vspace{1cm}
 \end{subfigure}
 \begin{subfigure}[t]{\textwidth}
 \begin{center}
@@ -462,12 +560,17 @@ generated with setting \texttt{count} to $m$,
              ($(p5.south east) + (4cm,-.5cm)$) -| (p5);
 
 \end{tikzpicture} % }}}
-\caption{Subfig, TODO: describe directed graph property}
+\caption{Directed graph showing the neighbors of each
+  process.}
+\label{fig:example_neighbors}
 \end{center}
+\vspace{1cm}
 \end{subfigure}
-\caption{Fig}
+\caption{Example of how $A: 5 \times 5$ is distributed
+  among 6 processes. Also shows the neighbors of each
+  process with wich the halo swapping is done.}
 \label{fig:example}
-\end{figure}
+\end{figure} % }}}
 
 In order to insure correctness of the result, the first
 axis of the topology can not contain more elements than $n$
