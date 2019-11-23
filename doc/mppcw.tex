@@ -606,7 +606,27 @@ truncation happens for $dim_{column}$.
 \subsection{Regression test suite for testing the
   correctness of the parallel version of \perc{}}
 
-% briefly outline regression test suite
+The correctness of the parallel version of \perc{} is
+tested with an expandable regression test suite, included
+in the project.
+All tests ran to this point were successful.
+The test suite tests the output of the parallel version of
+\perc{} against output of the serial version with the same
+parameters.
+The output, in this cases, is the generated Portable Gray
+Map file (see Algorithm~\ref{alg:perc_par}).
+If the files are identical, the test was successful.
+
+The parallel version of \perc{} was tested against the
+serial version with the following parameters:
+$n := 2^0, 2^1,\dots,2^9$.
+Each $n$ was combined with a seed for the random number
+generator: $seed := 1560, 1561,\dots, 1564$.
+The parallel version was executed with 1 to 4 processes on
+a single Linux machine running Open MPI, version $4.0.2$
+and 32 and 64 processes on two nodes of the Cirrus
+supercomputer, with 32 processes per node \citep[see][]
+{openmpi, cirrus}.
 
 % }}}
 
