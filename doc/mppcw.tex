@@ -635,7 +635,22 @@ supercomputer, with 32 processes per node \citep[see][]
 \subsection{The benchmark discussed in the following
   chapters}
 
-% describe benchmark
+The benchmarks tests the performance and scalability of the
+parallel version of \perc{}.
+It is run on two back end nodes of the Cirrus supercomputer
+with exclusive access.
+
+Measured were the clustering plus the scattering and
+gathering of $A$.
+Initialization and io were not part of the measurements.
+\texttt{MPI\_Wtime} was used for measuring the execution
+time \citep[see][Chapter 8]{mpi}.
+
+The benchmark executed \perc{} with $2^0,2^1,\dots2^6$
+processes, 32 processes per node.
+Each amount was tested with $n := 2000, 3000, 4000, 5000$
+and ten different seeds, resulting in 280 distinct time
+measurements.
 
 % }}}
 
