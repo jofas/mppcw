@@ -73,6 +73,28 @@
 \maketitle
 
 \begin{abstract}
+This paper describes an optimized version of \perc{} \v{}.
+\perc{} is a scientific program, which generates a random
+matrix with two kinds of cells: empty and filled.
+Empty cells build clusters with their neighboring empty
+cells and \perc{} finds clusters that begin at the first
+column and end at the last.
+If such a cluster exists, the matrix percolates.
+
+\perc{} performs a very costly clustering operation,
+wherefore the need for a faster solution arises.
+
+This paper describes the clustering operation and
+demonstrates its poor performance, by analyzing its best
+case time complexity, before going into detail about how
+MPI was used for parallelizing \perc{} and how its
+correctness is tested with a regression test suite.
+Also, a benchmark is presented, which successfully shows
+the performance benefits of the parallel version and its
+scalability.
+The results of the benchmark are presented and discussed
+in this paper, before at last a conclusion is drawn.
+
 \end{abstract}
 
 \begin{keywords}
@@ -90,12 +112,11 @@ clusters with their neighboring empty cells.
 for a cluster that makes the matrix percolate.
 The matrix percolates, if there exits a cluster that begins
 in the left most column of the matrix and ends in the right
-most column.
+most one.
 
-The computing of the clusters---the clustering---is done
-iteratively and is the main cause of computation in
-\perc{}.
-If the clustering is done in a serial way, it does not
+The clustering is done iteratively and is the main cause of
+computation in \perc{}.
+If it is done in a serial way, it does not
 scale well and clustering bigger matrices can consume a
 lot of time and power.
 
@@ -128,7 +149,7 @@ is drawn.
 
 This chapter presents a mathematical definition of the
 clustering algorithm used by \perc{}.
-The poor running time of the serial version of the
+The poor time complexity of the serial version of the
 clustering algorithm is shown.
 Afterwards the parallelized version of the clustering is
 described and a brief outline of the regression test suite
@@ -146,8 +167,8 @@ Let $A \in \mathbb{N}_0^{n \times n}$ be the matrix that
 is clustered by \perc{}.
 Let $A(i, j);1\leq i, j \leq n$ be the element at the
 $i$th row and $j$th column of $A$.
-An element from $A$ has a state. It is either empty or
-filled.
+An element from $A$ has an immutable state. It is either
+empty or filled.
 \perc{} randomly initializes $A$ with empty and filled
 elements.
 The density of the filled elements $\rho_{goal}$ can be
@@ -184,9 +205,8 @@ of an element and its neighbors:
   \mu(A, i, j) := \max(A(i,j), A(i-1,j), A(i+1,j),
                        A(i,j-1), A(i,j+1)).
 \end{align*}
-For now, if $i$ or $j$ equals $0$ or $n + 1$ (in other
-words, if $i$ or $j$ violate the boundaries of $A$), then
-$A(i, j)$ will return $0$.
+For now, if any index equals $0$ or $n + 1$ (if it violates
+the boundaries of $A$), then $A(i, j)$ will return $0$.
 
 \begin{proposition}
   \label{prop:two}
@@ -206,7 +226,8 @@ $A(i, j)$ will return $0$.
 With Proposition~\ref{prop:two}, we can now safely derive
 a recursive definition of the clustering operation (because
 $\mu$ will never change the state of an empty cell to
-filled).
+filled, aligning it with the immutability property of an
+element's state).
 First, let $c_{step}:\mathbb{N}_0^{n \times n} \rightarrow
 \mathbb{N}_0^{n \times n}$ be a single clustering step,
 that maps every empty element of $A$ to its biggest
@@ -255,6 +276,8 @@ To tackle the poor performance of the clustering algorithm,
 version 3.1 \citep[see][]{mpi}.
 Algorithm~\ref{alg:perc_par} shows the parallel version of
 \perc{}.
+This chapter outlines the implementation of the parallel
+version and its intricacies.
 
 Let $p$ be the amount of MPI processes the parallel version
 of \perc{} is executed with.
@@ -268,7 +291,7 @@ The $p$ processes are as evenly distributed as possible
 over both axes of the topology with the
 \texttt{MPI\_Dims\_create} routine.
 \texttt{MPI\_Dims\_create} returns an array $dims$ with two
-elements, one for each axis.
+elements, one for each axis of the topology.
 $dims_{row} = dims(1)$ contains the amount of processes the
 rows of $A$ are split by, $dims_{column} = dims(2)$ the
 amount of processes the columns of $A$ are split by.
@@ -296,9 +319,8 @@ Algorithm~\ref{alg:perc_par}, lines 2ff).
 Every process has coordinates in the topology, based on
 its rank.
 The coordinates of a process come from the
-\texttt{MPI\_Cart\_coords} routine and are a representation
-of the place of the process in the two dimensional
-Cartesian topology \citep[see][Chapter 7]{mpi}.
+\texttt{MPI\_Cart\_coords} routine
+\citep[see][Chapter 7]{mpi}.
 
 Let $coords_{p_i}$ be the coordinates of the process with
 rank $p_i$ and let $coords_{p_i, row}$ be the coordinates'
@@ -331,6 +353,7 @@ can define $i, j, l$ and $m$:
     s_{column} &\text{otherwise}.
   \end{cases}
 \end{align*}
+
 For both axes of $A$, every process has a chunk of the same
 size, except the processes, which coordinates' value for
 the equivalent axis in the topology is the highest possible
@@ -341,7 +364,8 @@ axis (see Figure~\ref{fig:example_distribution}).
 
 $l$ and $m$ are needed in order to generate a strided
 vector type with \texttt{MPI\_Type\_vector}, which is used
-for sending the chunk from the root process to $p_i$.
+for sending the chunk from the root process to $p_i$ and
+vice versa.
 In this case, the type for sending $p_i$'s chunk would be
 generated with setting \texttt{count} to $m$,
 \texttt{blocklength} to $l$ and \texttt{stride} to $n$
@@ -604,18 +628,17 @@ truncation happens for $dim_{column}$.
 
 % test suite {{{
 
-\subsection{Regression test suite for testing the
-  correctness of the parallel version of \perc{}}
+\subsection{The regression test suite}
 
 The correctness of the parallel version of \perc{} is
 tested with an expandable regression test suite, included
 in the project.
-All tests ran to this point were successful.
+All tests ran at this point were successful.
 The test suite tests the output of the parallel version of
 \perc{} against output of the serial version with the same
 parameters.
 The output, in this cases, is the generated Portable Gray
-Map file (see Algorithm~\ref{alg:perc_par}).
+Map file (see Algorithm~\ref{alg:perc_par}, line 10).
 If the files are identical, the test was successful.
 
 The parallel version of \perc{} was tested against the
@@ -633,8 +656,7 @@ supercomputer, with 32 processes per node \citep[see][]
 
 % benchmark {{{
 
-\subsection{The benchmark discussed in the following
-  chapters}
+\subsection{The benchmark}
 \label{subsec:bench}
 
 The benchmark tests the performance and scalability of the
@@ -660,11 +682,28 @@ distinct time measurements.
 
 \section{Results} % {{{
 
-% discuss benchmark
+Figure~\ref{fig:speedup} shows the speedup of the parallel
+version of \perc{} with more processes.
+Every time measurement was grouped by the amounts of
+processes $p$ the measurement was taken with.
+The average over the grouped timings were used to compute
+the speedup.
+\perc{}'s parallel version's speedup is very close to the
+optimal speedup.
+The biggest difference between the optimal and the actual
+speedup happens for 16 and 32 processes. In both cases,
+the actual speedup is still approximately 91 percent of the
+optimum.
 
-\begin{figure}
+Table~\ref{tab:t} shows the average time in seconds over
+every benchmarked seed per amount of processes $p$ and size
+of the matrix $n$.
+For all $p$ and $n$, the average execution time decreases
+for bigger $p$ and smaller $n$.
+
+\begin{figure} % {{{
   \begin{center}
-    \begin{tikzpicture}[scale=1.75]
+    \begin{tikzpicture}[scale=1.75] %{{{
   \datavisualization[
     scientific axes=clean,
     visualize as line/.list={d1, d},
@@ -676,26 +715,29 @@ distinct time measurements.
     d={
       label in legend={text={actual speedup}},
     },
-    y axis={label={speedup $\frac{p_1}{p}$}},
+    y axis={
+      logarithmic,
+      ticks={major={at={1,2,4,8,16,32,64}} },
+      label={speedup $\frac{\emptyset time_{p_1}}{\emptyset time_{p}}$ (\textit{log} scale)}
+    },
     x axis={
       logarithmic,
       ticks={major={at={1,2,4,8,16,32,64}} },
       label={amount of processes $p$ (\textit{log} scale)}
     },
-    %legend=below,
   ]
   data[headline={x, y}, read from file=data/speedup_data.csv, set=d]
   data[headline={x, y}, read from file=data/speedup_optimal.csv, set=d1]
   ;
-    \end{tikzpicture}
+    \end{tikzpicture} % }}}
   \end{center}
   \caption{Speedup when using more processes. The speedup
     was calculated over the average of every measurement,
     grouped by the amount of processes.}
   \label{fig:speedup}
-\end{figure}
+\end{figure} % }}}
 
-\begin{table}
+\begin{table} % {{{
   \begin{center}
   \begin{tabu} to \textwidth {l|rrrr}
     \input{data/table}
@@ -706,18 +748,20 @@ distinct time measurements.
     of $p$ and $n$ was executed with ten different seeds
     (see Chapter~\ref{subsec:bench}).}
   \label{tab:t}
-\end{table}
-
-% plot: speedup (with optimal speedup) (big, avg over all
-%       matrix sizes and seeds), marker for points
+\end{table} % }}}
 
 % }}}
 
 \section{Discussion} % {{{
 
+% will the scaling hit a limit?
+
 % }}}
 
 \section{Conclusion} % {{{
+
+% even though communication overhead: on modern systems
+% definitely a good idea
 
 % }}}
 
