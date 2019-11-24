@@ -18,6 +18,7 @@
 \usepackage{relsize}
 \usepackage{float}
 \usepackage{subcaption}
+\usepackage{diagbox}
 
 \usetikzlibrary{%
     arrows,
@@ -634,6 +635,7 @@ supercomputer, with 32 processes per node \citep[see][]
 
 \subsection{The benchmark discussed in the following
   chapters}
+\label{subsec:bench}
 
 The benchmark tests the performance and scalability of the
 parallel version of \perc{}.
@@ -649,8 +651,8 @@ time \citep[see][Chapter 8]{mpi}.
 The benchmark executed \perc{} with $2^0,2^1,\dots2^6$
 processes, 32 processes per node.
 Each was tested with $n := 2000, 3000, 4000, 5000$
-and ten different seeds, resulting in 280 distinct time
-measurements.
+and ten different seeds (one to ten), resulting in 280
+distinct time measurements.
 
 % }}}
 
@@ -660,10 +662,54 @@ measurements.
 
 % discuss benchmark
 
+\begin{figure}
+  \begin{center}
+    \begin{tikzpicture}[scale=1.75]
+  \datavisualization[
+    scientific axes=clean,
+    visualize as line/.list={d1, d},
+    style sheet=vary dashing,
+    style sheet=cross marks,
+    d1={
+      label in legend={text={optimal speedup}}
+    },
+    d={
+      label in legend={text={actual speedup}},
+    },
+    y axis={label={speedup $\frac{p_1}{p}$}},
+    x axis={
+      logarithmic,
+      ticks={major={at={1,2,4,8,16,32,64}} },
+      label={amount of processes $p$ (\textit{log} scale)}
+    },
+    %legend=below,
+  ]
+  data[headline={x, y}, read from file=data/speedup_data.csv, set=d]
+  data[headline={x, y}, read from file=data/speedup_optimal.csv, set=d1]
+  ;
+    \end{tikzpicture}
+  \end{center}
+  \caption{Speedup when using more processes. The speedup
+    was calculated over the average of every measurement,
+    grouped by the amount of processes.}
+  \label{fig:speedup}
+\end{figure}
+
+\begin{table}
+  \begin{center}
+  \begin{tabu} to \textwidth {l|rrrr}
+    \input{data/table}
+  \end{tabu}
+  \end{center}
+  \caption{The average execution time per amount of
+    processes $p$ and matrix size $n$. Each combination
+    of $p$ and $n$ was executed with ten different seeds
+    (see Chapter~\ref{subsec:bench}).}
+  \label{tab:t}
+\end{table}
+
 % plot: speedup (with optimal speedup) (big, avg over all
 %       matrix sizes and seeds), marker for points
-
-% table: processes -> matrix size (avg. over the seeds)
 
 % }}}
 
