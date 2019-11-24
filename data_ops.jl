@@ -3,8 +3,6 @@ using CSV, DataFrames, Statistics, Printf
 function speedup_data()
   data = CSV.read("data.csv", delim=',', copycols=true)
 
-  println("x,y")
-
   p1m = nothing
 
   for amnt_proc in groupby(data, :processes)
@@ -23,8 +21,6 @@ end
 function speedup_optimal()
   data = CSV.read("data.csv", delim=',', copycols=true)
 
-  println("x,y")
-
   for amnt_proc in groupby(data, :processes)
     p = amnt_proc[!, :processes][1]
     println(p, ",", p)
@@ -37,17 +33,19 @@ function avg_per_proc_and_size()
 
   gr = groupby(data, [:processes, :l])
 
-  l_line = string("\\diagbox{\$p\$}{\$n\$}", [string(" &", x[!, :l][1]) for x in
-    [y for y in gr if y[!, :processes][1] == 1]]...)
+  #l_line = string("\\diagbox{\$p\$}{\$n\$}", [string(" &", x[!, :l][1]) for x in
+  #  [y for y in gr if y[!, :processes][1] == 1]]...)
 
-  println(l_line, "\\\\")
-  println("\\hline")
+  #println(l_line, "\\\\")
+  #println("\\hline")
 
   cur_p = 0
   cur_line = ""
 
   for g in gr
-    p, l, m = g[!, :processes][1], g[!, :l][1], mean(g[!, :time])
+    p, l = g[!, :processes][1], g[!, :l][1]
+
+    m, s = mean(g[!, :time]), std(g[!, :time])
 
     if cur_p != p
       if cur_line != ""; println(cur_line, "\\\\"); end
@@ -56,7 +54,7 @@ function avg_per_proc_and_size()
       cur_line = "$p"
     end
 
-    cur_line = cur_line * @sprintf " &%.3f" m
+    cur_line = cur_line * @sprintf " &%.3f &%.3f" m s
   end
 
   println(cur_line, "\\\\")

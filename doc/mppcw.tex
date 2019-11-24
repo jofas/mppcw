@@ -176,10 +176,10 @@ defined as a parameter, which is approximated during
 initialization. $n$, as well, is provided as a parameter to
 \perc{}.
 
-Let $\sigma : \mathbb{N}_0 \rightarrow \{empty,filled\}$ be
+Let $state : \mathbb{N}_0 \rightarrow \{empty,filled\}$ be
 a function mapping a non-negative integer to its state:
 \begin{align*}
-  \sigma(x) := \begin{cases}
+  state(x) := \begin{cases}
     filled &\text{if } x = 0 \\
     empty  &\text{otherwise}
   \end{cases}.
@@ -188,14 +188,14 @@ a function mapping a non-negative integer to its state:
 \begin{proposition}
   \label{prop:one}
   Let $x, y \in \mathbb{N}_0$.
-  For every $x: \sigma(x) = empty$, follows: $x > y$, if
-  $\sigma(y) = filled$.
+  For every $x: state(x) = empty$, follows: $x > y$, if
+  $state(y) = filled$.
 \end{proposition}
 
 \begin{proof}
   There exits no smaller non-negative integer than $0$.
-  $\sigma(y) = filled$, only for $y = 0$. Therefore, every
-  number $x$, for which $\sigma(x) = empty$, must be bigger
+  $state(y) = filled$, only for $y = 0$. Therefore, every
+  number $x$, for which $state(x) = empty$, must be bigger
   than $y$.
 \end{proof}
 
@@ -210,8 +210,8 @@ the boundaries of $A$), then $A(i, j)$ will return $0$.
 
 \begin{proposition}
   \label{prop:two}
-  If $\sigma(A(i, j)) = empty$, than
-  $\sigma(\mu(A, i, j)) = empty$ as well.
+  If $state(A(i, j)) = empty$, than
+  $state(\mu(A, i, j)) = empty$ as well.
 \end{proposition}
 
 \begin{proof}
@@ -219,8 +219,8 @@ the boundaries of $A$), then $A(i, j)$ will return $0$.
   $A(i, j)$ and its neighbors, wherefore $\mu(A, i, j) \geq
   A(i, j)$.
   From Proposition~\ref{prop:one} follows, that every
-  number $y \in \mathbb{N}_0: \sigma(y) = filled$ must be
-  less than $A(i, j)$, if $\sigma(A(i,j)) = empty$.
+  number $y \in \mathbb{N}_0: state(y) = filled$ must be
+  less than $A(i, j)$, if $state(A(i,j)) = empty$.
 \end{proof}
 
 With Proposition~\ref{prop:two}, we can now safely derive
@@ -234,7 +234,7 @@ that maps every empty element of $A$ to its biggest
 neighbor and leaves filled elements untouched:
 \begin{align*}
   c_{step}(A) := i,j=1,\dots,n: \begin{cases}
-    \mu(A, i, j) &\text{if } \sigma(A(i, j)) = empty \\
+    \mu(A, i, j) &\text{if } state(A(i, j)) = empty \\
     0 &\text{otherwise}.
   \end{cases}
 \end{align*}
@@ -250,7 +250,7 @@ neighbor:
 \end{align*}
 
 Imagine the case where for every element
-$\sigma(A(i,j)) = filled$ follows, that
+$state(A(i,j)) = filled$ follows, that
 $\mu(A, i, j) = A(i, j)$.
 This would make $c(A)$ call $c_{step}$ just a single time,
 resulting in the best case running time of $c$:
@@ -649,8 +649,8 @@ generator: $seed := 1560, 1561,\dots, 1564$.
 The parallel version was executed with 1 to 4 processes on
 a single Linux machine running Open MPI, version $4.0.2$
 and 32 and 64 processes on two nodes of the Cirrus
-supercomputer, with 32 processes per node \citep[see][]
-{openmpi, cirrus}.
+supercomputer running HPE MPT version 2.16, with 32
+processes per node \citep[see][]{openmpi, cirrus}.
 
 % }}}
 
@@ -661,8 +661,8 @@ supercomputer, with 32 processes per node \citep[see][]
 
 The benchmark tests the performance and scalability of the
 parallel version of \perc{}.
-It was executed on two back end nodes of the Cirrus
-supercomputer with exclusive access.
+It was executed on eight back end nodes of the Cirrus
+supercomputer with exclusive access \citep[see][]{cirrus}.
 
 Measured were the clustering plus the scattering and
 gathering of $A$.
@@ -670,11 +670,16 @@ Initialization and io were not part of the measurements.
 \texttt{MPI\_Wtime} was used for measuring the execution
 time \citep[see][Chapter 8]{mpi}.
 
-The benchmark executed \perc{} with $2^0,2^1,\dots2^6$
+The benchmark executed \perc{} with $2^0,2^1,\dots2^8$
 processes, 32 processes per node.
 Each was tested with $n := 2000, 3000, 4000, 5000$
-and ten different seeds (one to ten), resulting in 280
+and ten different seeds (one to ten), resulting in 360
 distinct time measurements.
+
+\perc{} was compiled with the Intel Fortran Compiler
+(\texttt{ifort}) version 18.0.5, with the maximum serial
+optimization provided by the compiler (optimization level
+\texttt{O3}) \citep[see][]{ifort}.
 
 % }}}
 
@@ -691,15 +696,16 @@ the speedup.
 \perc{}'s parallel version's speedup is very close to the
 optimal speedup.
 The biggest difference between the optimal and the actual
-speedup happens for 16 and 32 processes. In both cases,
-the actual speedup is still approximately 91 percent of the
+speedup happens for 256 processes.
+The actual speedup is still approximately 89 percent of the
 optimum.
 
-Table~\ref{tab:t} shows the average time in seconds over
-every benchmarked seed per amount of processes $p$ and size
-of the matrix $n$.
-For all $p$ and $n$, the average execution time decreases
-for bigger $p$ and smaller $n$.
+Table~\ref{tab:t} shows the average time in seconds and
+the standard deviation over every benchmarked seed per
+amount of processes $p$ and size of the matrix $n$.
+For all $p$ and $n$, the average execution time and the
+standard deviation decreases for bigger $p$ and smaller
+$n$.
 
 \begin{figure} % {{{
   \begin{center}
@@ -717,12 +723,12 @@ for bigger $p$ and smaller $n$.
     },
     y axis={
       logarithmic,
-      ticks={major={at={1,2,4,8,16,32,64}} },
+      ticks={major={at={1,2,4,8,16,32,64,128,256}} },
       label={speedup $\frac{\emptyset time_{p_1}}{\emptyset time_{p}}$ (\textit{log} scale)}
     },
     x axis={
       logarithmic,
-      ticks={major={at={1,2,4,8,16,32,64}} },
+      ticks={major={at={1,2,4,8,16,32,64,128,256}} },
       label={amount of processes $p$ (\textit{log} scale)}
     },
   ]
@@ -739,14 +745,25 @@ for bigger $p$ and smaller $n$.
 
 \begin{table} % {{{
   \begin{center}
-  \begin{tabu} to \textwidth {l|rrrr}
+  \begin{tabu} to \textwidth {l||rr|rr|rr|rr}
+    &\multicolumn{2}{c|}{2000} &\multicolumn{2}{c|}{3000}
+    &\multicolumn{2}{c|}{4000} &\multicolumn{2}{c}{5000} \\
+
+    $p$
+    &\multicolumn{1}{c}{time} &\multicolumn{1}{c|}{$\sigma$}
+    &\multicolumn{1}{c}{time} &\multicolumn{1}{c|}{$\sigma$}
+    &\multicolumn{1}{c}{time} &\multicolumn{1}{c|}{$\sigma$}
+    &\multicolumn{1}{c}{time} &\multicolumn{1}{c}{$\sigma$} \\
+
+    \hline
     \input{data/table}
   \end{tabu}
   \end{center}
-  \caption{The average execution time per amount of
-    processes $p$ and matrix size $n$. Each combination
-    of $p$ and $n$ was executed with ten different seeds
-    (see Chapter~\ref{subsec:bench}).}
+  \caption{The average execution time and standard
+    deviation $\sigma$ per amount of processes $p$ and
+    matrix size $n$.
+    Each combination of $p$ and $n$ was executed with ten
+    different seeds (see Chapter~\ref{subsec:bench}).}
   \label{tab:t}
 \end{table} % }}}
 
@@ -754,11 +771,53 @@ for bigger $p$ and smaller $n$.
 
 \section{Discussion} % {{{
 
-% will the scaling hit a limit?
+The benchmark successfully shows the performance benefits
+and scalability of the parallel version of \perc{}.
+The fact that the actual speedup is very close to the
+optimal speedup is an indication for the implementation's
+efficiency and the fact, that the overhead of communication
+between processes is negligible in comparison to the
+performance gains.
+Overall can the benchmark be described as rather
+unremarkable, since it does not reveal any issues with the
+implementation.
+
+Also the fact that the average time and standard deviation
+displayed in Table~\ref{tab:t} continuously decrease with
+smaller $n$ and bigger $p$ show the robustness of the
+parallel version of \perc{}.
+The fact, that the speedup slightly drops with higher
+amounts of processes could be the result of added distance
+between them.
+For example, the tests with 256 processes were distributed
+among eight nodes of Cirrus, while the tests with 128
+processes were only distributed among half of that.
+This adds distance between processes in form of higher
+network latency, which can decrease the performance of
+the program.
+
+A ceiling for the scalability of the parallel version,
+where it hits a plateau and performance does not increase
+anymore, or only with an exponential amount of more
+processes, was not determined by the benchmark.
 
 % }}}
 
 \section{Conclusion} % {{{
+
+The parallel version of \perc{} truly increases the
+performance of the program, which is shown by the conducted
+and presented benchmark.
+The fact that the actual speedup of the parallel version is
+close to the optimal speedup (see Figure~\ref{fig:speedup}),
+shows its strong scaling capabilities.
+It makes the overhead of using message passing in form of
+the MPI library negligible in comparison to the performance
+gains.
+
+Therefore, based on the results presented in this paper,
+the parallel version of \perc{} is deemed a successful
+optimization and enhancement of the program.
 
 % even though communication overhead: on modern systems
 % definitely a good idea
