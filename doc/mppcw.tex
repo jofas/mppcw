@@ -75,9 +75,9 @@
 \begin{abstract}
 This paper describes an optimized version of \perc{} \v{}.
 \perc{} is a scientific program, which generates a random
-matrix with two kinds of cells: empty and filled.
-Empty cells build clusters with their neighboring empty
-cells and \perc{} finds clusters that begin at the first
+matrix with two kinds of elements: empty and filled.
+Empty elements build clusters with their neighboring empty
+elements and \perc{} finds clusters that begin at the first
 column and end at the last.
 If such a cluster exists, the matrix percolates.
 
@@ -106,8 +106,8 @@ performance optimization, MPI
 
 \perc{} \v{} is a scientific program written in the Fortran
 programming language. It generates a random matrix with two
-kinds of cells: empty and filled. Empty cells build
-clusters with their neighboring empty cells.
+kinds of elements: empty and filled. Empty elements build
+clusters with their neighboring empty elements.
 \perc{} computes all clusters in the matrix and searches
 for a cluster that makes the matrix percolate.
 The matrix percolates, if there exits a cluster that begins
@@ -132,9 +132,9 @@ This makes it a 2d domain decomposition of the matrix.
 The parallel version is based on MPI and the worker
 instances are MPI processes \citep[see][]{mpi}.
 
-First, this paper describes the clustering algorithm used
-by \perc{} and the way \perc{} is parallelized using the
-MPI library.
+This paper begins by describing the clustering algorithm
+used by \perc{} and the way \perc{} is parallelized using
+the MPI library.
 The parallel version's correctness is tested by a
 regression test suite, which is briefly outlined.
 Afterwards a benchmark is presented, which analyzes the
@@ -160,8 +160,7 @@ discussed in the following chapters.
 
 % math def {{{
 
-\subsection{Mathematical definition of the clustering
-  algorithm used by \perc{}}
+\subsection{The clustering algorithm}
 
 Let $A \in \mathbb{N}_0^{n \times n}$ be the matrix that
 is clustered by \perc{}.
@@ -235,8 +234,8 @@ neighbor and leaves filled elements untouched:
 \begin{align*}
   c_{step}(A) := i,j=1,\dots,n: \begin{cases}
     \mu(A, i, j) &\text{if } state(A(i, j)) = empty \\
-    0 &\text{otherwise}.
-  \end{cases}
+    0 &\text{otherwise}
+  \end{cases}.
 \end{align*}
 The clustering operation $c$ of \perc{} can now be defined
 as a recursive function, that executes $c_{step}$, as long
@@ -245,8 +244,8 @@ neighbor:
 \begin{align*}
   c(A) := \begin{cases}
     A &\text{if } c_{step}(A) = A \\
-    c(c_{step}(A)) &\text{otherwise}.
-  \end{cases}
+    c(c_{step}(A)) &\text{otherwise}
+  \end{cases}.
 \end{align*}
 
 Imagine the case where for every element
@@ -254,8 +253,12 @@ $state(A(i,j)) = filled$ follows, that
 $\mu(A, i, j) = A(i, j)$.
 This would make $c(A)$ call $c_{step}$ just a single time,
 resulting in the best case running time of $c$:
-$\Omega(c) = n^2$, which---for bigger $n$---is still quite
-slow, even though it is the best case.
+$\Omega(c) = n^2$.
+Any time complexity of $n^2$ is quite slow, especially
+if it is the best case time complexity.
+This makes $c$ unfeasible for bigger $n$, especially if
+$\rho_{goal}$ is set to a high value (close to 1), because
+this will increase the depth of the recursion.
 
 After the clustering, it is easy to check whether the
 matrix percolates.
@@ -350,8 +353,8 @@ can define $i, j, l$ and $m$:
   \end{cases} \\
   &m := \begin{cases}
     s_{column} + n \mod dims_{column} &\text{if } coords_{p_i, column} = dims_{column} - 1 \\
-    s_{column} &\text{otherwise}.
-  \end{cases}
+    s_{column} &\text{otherwise}
+  \end{cases}.
 \end{align*}
 
 For both axes of $A$, every process has a chunk of the same
@@ -391,7 +394,7 @@ lines 5,7 and][Chapter 3]{mpi}.
       \STATE{randomly initialize $A$}
     \ENDIF
     \STATE{scatter $A$ to every process's chunk}
-    \STATE{execute $c_{par}$ (Algorithm~\ref{alg:cluster_par})}
+    \STATE{execute $c_{par}$(chunk) (Algorithm~\ref{alg:cluster_par})}
     \STATE{gather the chunks back to $A$}
     \IF{rank = 0}
       \STATE{find out if $A$ percolates}
@@ -426,13 +429,12 @@ its indices ranging from $0,\dots,L+1$ and $0,\dots,M+1$).
 The halo is used as a container for the data received from
 $p_i$'s neighbors during the halo swapping, or as a buffer
 of empty elements for $\mu$, if the process's left or right
-neighbor is \texttt{MPI\_PROC\_NULL}
-\citep[see][Chapter 3]{mpi}.
+neighbor is \texttt{MPI\_PROC\_NULL}.
 
 The halo swapping happens before each $cluster_{step}$
 (see Algorithm~\ref{alg:cluster_par}, line 3).
 Halo swapping means, the outer most row or column (in
-any direction of left, right upper or lower) is send
+all directions: left, right upper and lower) is send
 to the corresponding neighbor, which sends its outer most
 row or column in return (the opposite of the direction it
 receives from).
@@ -461,7 +463,7 @@ previous step, the clustering is finished (see
 Algorithm~\ref{alg:cluster_par}).
 
 \begin{algorithm} % {{{
-  \caption{: $c_{par}$}
+  \caption{: $c_{par}$(chunk)}
   \label{alg:cluster_par}
 
   \begin{algorithmic}[1]
@@ -593,7 +595,7 @@ Algorithm~\ref{alg:cluster_par}).
 \end{subfigure}
 \caption{Example of how $A: 5 \times 5$ is distributed
   among 6 processes. Also shows the neighbors of each
-  process with wich the halo swapping is done.}
+  process with which the halo swapping is done.}
 \label{fig:example}
 \end{figure} % }}}
 
@@ -602,18 +604,22 @@ axis of the topology can not contain more elements than $n$
 ($dims_{row} \leq n$), because this axis uses a periodic
 boundary condition.
 If $dim_{row} > n$, than $s_{row} = 0$. That means, only
-the processes with $coords_{row} = dims_{row} - 1$ would
-contain elements and all other processes would contain
-empty chunks, because $l = s_{row} = 0$.
+the processes with $coords_{p_i, row} = dims_{row} - 1$
+would contain elements and all other processes would
+contain empty chunks, because for them $l = s_{row} = 0$,
+rendering the parallel version worse than the serial
+version (if only this axis is considered), because a single process does the
+clustering (like the serial version) and a communicative
+overhead is introduced.
 If not for the periodic boundary condition, this would only
 endanger the performance of \perc{}, not its correctness.
-But during halo swapping, a process with $coords_{row} = 0$
-would receive its lower halo from a process with
-$coords_{row} = dims_{row} - 1$, which means they are
-lost to the processes not containing empty chunks
-(which should actually have themselves as lower and upper
-neighbor), making the periodic boundary condition
-non-periodic.
+But during halo swapping, a process with $coords_{p_i, row}
+= 0$ would receive its lower halo from a process with
+$coords_{p_i, row} = dims_{row} - 1$, which means this
+particular halo swap is lost to the processes not
+containing empty chunks (which should actually have
+themselves as lower and upper neighbor), violating the
+periodic boundary condition of the first axis.
 
 Therefore, the Cartesian communicator truncates
 $dim_{row} = n$, if $dim_{row} > n$, which means there are
@@ -639,7 +645,7 @@ The test suite tests the output of the parallel version of
 parameters.
 The output, in this cases, is the generated Portable Gray
 Map file (see Algorithm~\ref{alg:perc_par}, line 10).
-If the files are identical, the test was successful.
+If the files are identical, the test is successful.
 
 The parallel version of \perc{} was tested against the
 serial version with the following parameters:
@@ -659,8 +665,8 @@ processes per node \citep[see][]{openmpi, cirrus}.
 \subsection{The benchmark}
 \label{subsec:bench}
 
-The benchmark tests the performance and scalability of the
-parallel version of \perc{}.
+The benchmark presented below tests the performance and
+scalability of the parallel version of \perc{}.
 It was executed on eight back end nodes of the Cirrus
 supercomputer with exclusive access \citep[see][]{cirrus}.
 
@@ -779,8 +785,9 @@ efficiency and the fact, that the overhead of communication
 between processes is negligible in comparison to the
 performance gains.
 Overall can the benchmark be described as rather
-unremarkable, since it does not reveal any issues with the
-implementation.
+unremarkable, in the sense that it does not reveal any
+issues with the implementation, rather demonstrating its
+strong scalability.
 
 Also the fact that the average time and standard deviation
 displayed in Table~\ref{tab:t} continuously decrease with
@@ -807,7 +814,7 @@ processes, was not determined by the benchmark.
 
 The parallel version of \perc{} truly increases the
 performance of the program, which is shown by the conducted
-and presented benchmark.
+benchmark.
 The fact that the actual speedup of the parallel version is
 close to the optimal speedup (see Figure~\ref{fig:speedup}),
 shows its strong scaling capabilities.
@@ -818,9 +825,6 @@ gains.
 Therefore, based on the results presented in this paper,
 the parallel version of \perc{} is deemed a successful
 optimization and enhancement of the program.
-
-% even though communication overhead: on modern systems
-% definitely a good idea
 
 % }}}
 
