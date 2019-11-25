@@ -32,11 +32,11 @@ module cli_info
   "                                                        ", &
   "    -l, --length            INT   Sets the dimension of ", &
   "                                  the matrix.           ", &
-  "                                  DEFAULT: 20.          ", &
+  "                                  DEFAULT: 288.         ", &
   "                                                        ", &
   "    -d, --density           FLOAT Sets the density of   ", &
   "                                  the full cells.       ", &
-  "                                  DEFAULT: 0.4.         ", &
+  "                                  DEFAULT: 0.411        ", &
   "                                                        ", &
   "    -p, --print_n_clusters  INT   Sets the amount of    ", &
   "                                  clusters displayed in ", &
