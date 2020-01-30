@@ -79,19 +79,34 @@ contains
 
     integer, dimension(L, 0:L+1) :: map_old
 
-    integer :: i, changes
+    integer :: i, j, k, changes
 
     i = 1
     do
       map_old(:, :) = map(:, :)
 
-      where (map /= 0)
-        map = max( cshift(map, shift=-1, dim=1) &
-                 , cshift(map, shift= 1, dim=1) &
-                 , cshift(map, shift=-1, dim=2) &
-                 , cshift(map, shift= 1, dim=2) &
-                 , map )
-      end where
+      !$omp parallel do default(none) private(k, j) &
+      !$omp shared(map, L)
+      do j = 1, L
+        do k = 1, L
+          if (map(k, j) /= 0) then
+            map(k, j) = max( map(k, j + 1) &
+                           , map(k, j - 1) &
+                           , map(k + 1, j) &
+                           , map(k - 1, j) &
+                           , map(k, j) )
+          end if
+        end do
+      end do
+      !$omp end parallel do
+
+      !where (map /= 0)
+      !  map = max( cshift(map, shift=-1, dim=1) &
+      !           , cshift(map, shift= 1, dim=1) &
+      !           , cshift(map, shift=-1, dim=2) &
+      !           , cshift(map, shift= 1, dim=2) &
+      !           , map )
+      !end where
 
       changes = count(map(:, :) - map_old(:, :) /= 0)
 

@@ -1,7 +1,8 @@
-FC=           ifort
-FC_PAR=       mpif08
+#FC=           ifort
+FC= gfortran
+FC_PAR=       mpifort
 
-FFLAGS=       -O3
+FFLAGS=       -O3 -fopenmp
 
 EXE_PAR=      percolate_par
 EXE_SER=      percolate_ser

@@ -159,13 +159,28 @@ contains
     !
     integer :: i, j
 
-    forall(j=1:N, i=1:M, chunk(i, j) /= 0)
-      chunk(i, j) = max( chunk(i, j + 1) &
-                       , chunk(i, j - 1) &
-                       , chunk(i + 1, j) &
-                       , chunk(i - 1, j) &
-                       , chunk(i, j) )
-    end forall
+    !$omp parallel do default(none) private(i, j) &
+    !$omp shared(chunk, N, M)
+    do j = 1, N
+      do i = 1, M
+        if (chunk(i, j) /= 0) then
+          chunk(i, j) = max( chunk(i, j + 1) &
+                           , chunk(i, j - 1) &
+                           , chunk(i + 1, j) &
+                           , chunk(i - 1, j) &
+                           , chunk(i, j) )
+        end if
+      end do
+    end do
+    !$omp end parallel do
+
+    !forall(j=1:N, i=1:M, chunk(i, j) /= 0)
+    !  chunk(i, j) = max( chunk(i, j + 1) &
+    !                   , chunk(i, j - 1) &
+    !                   , chunk(i + 1, j) &
+    !                   , chunk(i - 1, j) &
+    !                   , chunk(i, j) )
+    !end forall
   end
 
 
